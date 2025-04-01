@@ -1,0 +1,7 @@
+I have perfomed EDA on the Mozilla common voice dataset. I created the AI audios with gTTS from the validated sentences.
+
+TO RUN ON YOUR SYSTEM: 
+
+1- go to this link https://commonvoice.mozilla.org/en/datasets
+2- download 'Common Voice Delta Segment 19.0' (657.85 MB)
+3- Place the notebook in the en folder once you download the dataset and it should normally. 
