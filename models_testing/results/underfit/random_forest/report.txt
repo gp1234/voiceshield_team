@@ -1,0 +1,10 @@
+Model Evaluation Report - random_forest
+==================================================
+
+Classification Metrics:
+--------------------
+0: {'precision': 0.9230769230769231, 'recall': 1.0, 'f1-score': 0.96, 'support': 12.0}
+1: {'precision': 1.0, 'recall': 0.9166666666666666, 'f1-score': 0.9565217391304348, 'support': 12.0}
+accuracy: 0.9583333333333334
+macro avg: {'precision': 0.9615384615384616, 'recall': 0.9583333333333333, 'f1-score': 0.9582608695652174, 'support': 24.0}
+weighted avg: {'precision': 0.9615384615384616, 'recall': 0.9583333333333334, 'f1-score': 0.9582608695652174, 'support': 24.0}
