@@ -1,0 +1,23 @@
+# Environment variables
+.env
+
+# AWS credentials file (if present)
+aws_credentials
+
+# Log files
+*.log
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Poetry virtual environment
+.venv/
+
+# Test/temporary files
+s3_metadata_check_*.csv
+subset_*.zip
+
+# Old requirements file (using Poetry now)
+requirements.txt 

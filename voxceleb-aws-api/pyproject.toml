@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "voxceleb-aws-api"
+version = "0.1.0"
+description = "VoxCeleb2 Dataset API for AWS"
+authors = ["VoiceShield"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.8"
+flask = "^3.0.0"
+boto3 = "^1.34.1"
+pandas = "^2.0.0"
+python-dotenv = "^1.0.0"
+tqdm = "^4.67.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api" 
