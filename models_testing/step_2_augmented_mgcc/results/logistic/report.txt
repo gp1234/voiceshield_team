@@ -1,0 +1,30 @@
+Model Evaluation Report - logistic
+==================================================
+
+Classification Metrics:
+--------------------
+
+0:
+  precision: 1.0
+  recall: 0.9166666666666666
+  f1-score: 0.9565217391304348
+  support: 12.0
+
+1:
+  precision: 0.972972972972973
+  recall: 1.0
+  f1-score: 0.9863013698630136
+  support: 36.0
+accuracy: 0.9791666666666666
+
+macro avg:
+  precision: 0.9864864864864865
+  recall: 0.9583333333333333
+  f1-score: 0.9714115544967242
+  support: 48.0
+
+weighted avg:
+  precision: 0.9797297297297298
+  recall: 0.9791666666666666
+  f1-score: 0.978856462179869
+  support: 48.0

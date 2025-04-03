@@ -1,5 +1,0 @@
-Model Evaluation Report - svm
-==================================================
-
-Classification Metrics:
---------------------
