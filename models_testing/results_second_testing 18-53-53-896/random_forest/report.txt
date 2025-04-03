@@ -1,5 +1,0 @@
-Model Evaluation Report - random_forest
-==================================================
-
-Classification Metrics:
---------------------
