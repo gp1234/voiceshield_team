@@ -1,0 +1,10 @@
+Model Evaluation Report - mlp
+==================================================
+
+Classification Metrics:
+--------------------
+0.0: {'precision': 0.5416666666666666, 'recall': 1.0, 'f1-score': 0.7027027027027027, 'support': 13.0}
+1.0: {'precision': 0.0, 'recall': 0.0, 'f1-score': 0.0, 'support': 11.0}
+accuracy: 0.5416666666666666
+macro avg: {'precision': 0.2708333333333333, 'recall': 0.5, 'f1-score': 0.35135135135135137, 'support': 24.0}
+weighted avg: {'precision': 0.29340277777777773, 'recall': 0.5416666666666666, 'f1-score': 0.38063063063063063, 'support': 24.0}
