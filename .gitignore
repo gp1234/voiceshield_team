@@ -1,6 +1,8 @@
 # Audio data directories
 assets/audio/processed_audio/
+code/assets/audio/processed_audio/
 assets/audio/results/
+code/assets/audio/results/
 results_second_testing/
 
 # Python
