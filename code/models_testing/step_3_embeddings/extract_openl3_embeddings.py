@@ -24,7 +24,7 @@ def extract_embedding(audio_path):
 
 def label_and_group(file_path):
     parts = file_path.split(os.sep)
-    label = 0 if parts[-2] == "real" else 1
+    label = 1 if parts[-2] == "real" else 0
     source = parts[-2]
     group = os.path.splitext(parts[-1])[0].replace(".mp3", "").replace(".wav", "")
     return label, group, source

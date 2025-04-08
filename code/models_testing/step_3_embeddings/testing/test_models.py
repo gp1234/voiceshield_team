@@ -16,6 +16,7 @@ TEST_AUDIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sampl
 OUTPUT_DIR = os.path.join(os.getcwd(), "test_results")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+
 def extract_embedding(audio_path):
     """Extract OpenL3 embedding from audio file."""
     try:
@@ -90,10 +91,9 @@ def test_model(model_name, model, test_files, true_labels=None):
         
         print(f"Accuracy: {report['accuracy']:.4f}")
     else:
-        # For samples without true labels, just print the predictions
         print("\nPredictions:")
         for file, pred in zip(file_names, predictions):
-            label = "REAL" if pred == 0 else "FAKE"
+            label = "REAL" if pred == 1 else "FAKE"
             print(f"{file}: {label}")
     
     return results_df

@@ -57,12 +57,10 @@ for name, model in models.items():
     plt.savefig(os.path.join(model_dir, "confusion_matrix.png"))
     plt.close()
 
-    # Save report
     with open(os.path.join(model_dir, "report.txt"), "w") as f:
         for k, v in report.items():
             f.write(f"{k}: {v}\n")
     
-    # Save model
     joblib.dump(model, os.path.join(model_dir, "model.joblib"))
 
 print(f"\n✅ Results saved to: {OUTPUT_DIR}")

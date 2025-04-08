@@ -1,0 +1,6 @@
+sample,prediction,prediction_label
+record_1_real.mp3,0,real
+record_3_real.wav,0,real
+ElevenLabs_fake.mp3,0,real
+record_4_real.mp3,0,real
+recording_5_real.mp3,1,fake
