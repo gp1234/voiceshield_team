@@ -1,0 +1,25 @@
+Model: mlp
+==================================================
+
+Sample Predictions:
+--------------------
+Sample: record_1_real.mp3
+Prediction: real
+----------
+Sample: record_3_real.wav
+Prediction: real
+----------
+Sample: ElevenLabs_fake.mp3
+Prediction: real
+----------
+Sample: record_4_real.mp3
+Prediction: real
+----------
+Sample: recording_5_real.mp3
+Prediction: fake
+----------
+
+Prediction Summary:
+--------------------
+real: 4 samples
+fake: 1 samples

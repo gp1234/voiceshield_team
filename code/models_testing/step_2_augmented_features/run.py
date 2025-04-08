@@ -12,7 +12,7 @@ from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import LogisticRegression
 import re
-from testing_models_augmented import ModelEvaluator
+from model_training import ModelEvaluator
 
 import os
 import numpy as np

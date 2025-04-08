@@ -1,0 +1,24 @@
+Model: svm
+==================================================
+
+Sample Predictions:
+--------------------
+Sample: record_1_real.mp3
+Prediction: fake
+----------
+Sample: record_3_real.wav
+Prediction: fake
+----------
+Sample: ElevenLabs_fake.mp3
+Prediction: fake
+----------
+Sample: record_4_real.mp3
+Prediction: fake
+----------
+Sample: recording_5_real.mp3
+Prediction: fake
+----------
+
+Prediction Summary:
+--------------------
+fake: 5 samples

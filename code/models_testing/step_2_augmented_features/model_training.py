@@ -7,6 +7,15 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix
 import joblib
 
+class ModelWithScaler:
+    def __init__(self, model, scaler):
+        self.model = model
+        self.scaler = scaler
+
+    def predict(self, X):
+        X_scaled = self.scaler.transform(X)
+        return self.model.predict(X_scaled)
+
 class ModelEvaluator:
     def __init__(self, models, labeled_data, output_dir='evaluation_results'):
         self.models = models
@@ -15,19 +24,22 @@ class ModelEvaluator:
         os.makedirs(output_dir, exist_ok=True)
 
     def evaluate_model(self, model, X_train, X_test, y_train, y_test, model_name, scaler=None):
-        # Scale the data if scaler is provided
         if scaler is not None:
             X_train = scaler.transform(X_train)
             X_test = scaler.transform(X_test)
         
-        # Train the model
         model.fit(X_train, y_train)
         
-        # Make predictions
         y_pred = model.predict(X_test)
         metrics = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
         cm = confusion_matrix(y_test, y_pred)
         return metrics, cm
+
+    def save_model(self, model, scaler, model_name, model_dir):
+        model_with_scaler = ModelWithScaler(model, scaler)
+        model_path = os.path.join(model_dir, f'{model_name.lower().replace(" ", "_")}.joblib')
+        joblib.dump(model_with_scaler, model_path)
+        return model_path
 
     def plot_confusion_matrix(self, cm, model_name, model_dir):
         plt.figure(figsize=(8, 6))
@@ -84,5 +96,8 @@ class ModelEvaluator:
 
             self.plot_confusion_matrix(cm, model_name, model_dir)
             self.generate_report(metrics, model_name, model_dir)
+            
+            model_path = self.save_model(model, scaler, model_name, model_dir)
+            print(f"Model and scaler saved to: {model_path}")
 
         return results
