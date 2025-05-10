@@ -1,0 +1,39 @@
+Classification Report for random_forest:
+              precision    recall  f1-score   support
+
+    Fake (0)       1.00      1.00      1.00        54
+    Real (1)       1.00      1.00      1.00        18
+
+    accuracy                           1.00        72
+   macro avg       1.00      1.00      1.00        72
+weighted avg       1.00      1.00      1.00        72
+
+
+--- Dictionary Format ---
+
+Fake (0):
+  precision: 1.0
+  recall: 1.0
+  f1-score: 1.0
+  support: 54.0
+
+Real (1):
+  precision: 1.0
+  recall: 1.0
+  f1-score: 1.0
+  support: 18.0
+
+accuracy:
+  value: 1.0
+
+macro avg:
+  precision: 1.0
+  recall: 1.0
+  f1-score: 1.0
+  support: 72.0
+
+weighted avg:
+  precision: 1.0
+  recall: 1.0
+  f1-score: 1.0
+  support: 72.0

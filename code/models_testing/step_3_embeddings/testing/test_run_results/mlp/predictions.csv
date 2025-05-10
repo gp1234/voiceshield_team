@@ -1,0 +1,6 @@
+file,prediction_numeric,prediction_label,confidence_percent
+record_1_real.mp3,1,REAL,98.28
+record_4_fake.mp3,0,FAKE,53.27
+record_3_fake.wav,0,FAKE,93.91
+ElevenLabs_fake.mp3,0,FAKE,77.44
+recording_5_real.mp3,1,REAL,99.34
