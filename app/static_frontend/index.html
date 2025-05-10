@@ -352,6 +352,8 @@
       }
 
       async function toggleRecording() {
+        // disable button
+        chooseFileButton.classList.add("hidden");
         if (!isRecording) {
           try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -495,6 +497,7 @@
       }
 
       tryAgainButton.addEventListener("click", () => {
+        chooseFileButton.classList.remove("hidden");
         uploadView.classList.remove("hidden");
         animateCSS(uploadView, "fadeIn");
         analyzingView.classList.add("hidden");
