@@ -25,7 +25,7 @@ MODEL_DIR = "saved_models" # This should be relative to where main.py is, or an 
 # If your 'model_and_scaler.joblib' is for a specific model (e.g., svm), reflect that.
 # Let's assume you've chosen one model, e.g., svm, and placed its bundle here:
 CHOSEN_MODEL_NAME = "svm" # Example: choose which model to use
-MODEL_PATH = os.path.join(MODEL_DIR, f"{CHOSEN_MODEL_NAME}_model_and_scaler.joblib") 
+MODEL_PATH = os.path.join(MODEL_DIR, "model_and_scaler.joblib") 
 
 MIN_AUDIO_DURATION_SEC = 3.0
 TARGET_SR = 16000 
