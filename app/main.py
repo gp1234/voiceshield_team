@@ -12,24 +12,25 @@ import openl3
 import librosa
 from pydantic import BaseModel
 from typing import List
-from pydub import AudioSegment # Import pydub
-import io # To handle byte streams with pydub
+from pydub import AudioSegment
+import io
+import time # For basic timing and more informative logs
 
 # --- Configuration ---
-MODEL_DIR = "saved_models" # This should be relative to where main.py is, or an absolute path
-# Assuming your training script (train_from_openl3_v2.py) saves models like:
-# <project_root>/results_openl3_real_is_1/<model_name>/model_and_scaler.joblib
-# And your FastAPI app is in <project_root>/app/main.py
-# You might need to adjust this path based on your actual structure.
-# For simplicity, let's assume 'saved_models' is next to 'main.py' for now.
-# If your 'model_and_scaler.joblib' is for a specific model (e.g., svm), reflect that.
-# Let's assume you've chosen one model, e.g., svm, and placed its bundle here:
-CHOSEN_MODEL_NAME = "svm" # Example: choose which model to use
-MODEL_PATH = os.path.join(MODEL_DIR, "model_and_scaler.joblib") 
+# Assuming main.py is in the 'app/' directory relative to the project root
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Directory for deployed models within the 'app' directory
+# User indicates model is directly in 'app/saved_models/'
+SAVED_MODEL_DIR = os.path.join(APP_DIR, "saved_models") 
+MODEL_BUNDLE_FILENAME = "model_and_scaler.joblib" # The actual filename of the bundle
+MODEL_PATH = os.path.join(SAVED_MODEL_DIR, MODEL_BUNDLE_FILENAME) 
+
+CHOSEN_MODEL_TYPE_FOR_LOGGING = "svm" # For logging purposes, indicate what type of model this bundle is expected to be
 
 MIN_AUDIO_DURATION_SEC = 3.0
 TARGET_SR = 16000 
-STATIC_DIR = "static_frontend" 
+STATIC_DIR = os.path.join(APP_DIR, "static_frontend") # Assuming static_frontend is also in app/
 
 # --- Application Setup ---
 app = FastAPI(title="Deepfake Voice Analyzer")
@@ -49,72 +50,43 @@ app.add_middleware(
 )
 
 # --- Model Loading ---
-model_bundle = None
 model = None
 scaler = None
 
 @app.on_event("startup")
 async def load_model_and_scaler():
-    global model_bundle, model, scaler
+    global model, scaler
     
-    # Adjust MODEL_PATH if your structure is different or if you want to load a specific model
-    # For example, if your training script saves into 'results_openl3_real_is_1/svm/model_and_scaler.joblib'
-    # and 'main.py' is in 'app/', then MODEL_PATH might be:
-    # training_results_path = os.path.join("..", "code", "models_testing", "step_3_embeddings", "results", CHOSEN_MODEL_NAME, "model_and_scaler.joblib")
-    # actual_model_path = os.path.abspath(training_results_path)
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] INFO: Server startup: Attempting to load model and scaler.")
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] INFO: Expected model path: {MODEL_PATH}")
     
-    # For this example, let's assume you've copied your chosen model bundle to 'saved_models'
-    # relative to where main.py is.
-    
-    # Create saved_models directory if it doesn't exist (for clarity, though model should be there)
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    
-    # Example: Manually specify the path to the model you want to use from your training output
-    # This assumes your training output is in ../code/models_testing/step_3_embeddings/results/
-    # And main.py is in an 'app' folder at the root.
-    # Path relative from current file (main.py) to the model file
-    # Example: if main.py is in project_root/app/ and models are in project_root/code/models_testing/step_3_embeddings/results/
-    # This needs to be robust. For now, let's assume a simpler 'saved_models' dir.
-    
-    # Corrected path assuming 'saved_models' is in the same directory as main.py
-    # and you've copied the specific model bundle there.
-    # Example: saved_models/svm_model_and_scaler.joblib
-    
-    # Let's try to make the path more robust based on typical project structure
-    # If main.py is in 'app' folder, and 'results_openl3_real_is_1' is at project root:
-    project_root = os.path.dirname(os.path.abspath(__file__)) # if main.py is at root
-    # If main.py is in an 'app' subfolder:
-    # project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) 
-    
-    # This is a common source of error. For now, let's use a simplified path.
-    # Ensure MODEL_PATH points to the correct .joblib file.
-    # If your training script created 'results_openl3_real_is_1/svm/model_and_scaler.joblib',
-    # you need to make MODEL_PATH point there, or copy that file to 'saved_models/svm_model_and_scaler.joblib'
-    
-    # For the sake of this example, let's assume you have copied the desired model to:
-    # saved_models/model_and_scaler.joblib (generic name)
-    # OR saved_models/svm_model_and_scaler.joblib (if you set CHOSEN_MODEL_NAME)
+    if not os.path.exists(SAVED_MODEL_DIR):
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] WARNING: Directory for saved models not found: {SAVED_MODEL_DIR}. Attempting to create it.")
+        try:
+            os.makedirs(SAVED_MODEL_DIR, exist_ok=True)
+        except Exception as e:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: Could not create saved models directory {SAVED_MODEL_DIR}: {e}")
+            return
 
-    # Let's assume a fixed name for the bundle in saved_models for simplicity here
-    fixed_bundle_name = "model_and_scaler.joblib" # You'd copy your chosen model (e.g. svm's) here
-    actual_model_path = os.path.join(MODEL_DIR, fixed_bundle_name)
-
-
-    if not os.path.exists(actual_model_path):
-        print(f"ERROR: Model file not found at {actual_model_path}")
-        print(f"Please ensure your trained model (e.g., from 'results_openl3_real_is_1/{CHOSEN_MODEL_NAME}/model_and_scaler.joblib')")
-        print(f"is copied to '{MODEL_DIR}/{fixed_bundle_name}' relative to where main.py is run.")
-        return
+    if not os.path.exists(MODEL_PATH):
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: Model file not found at {MODEL_PATH}")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] INFO: Please ensure your trained model bundle ('{MODEL_BUNDLE_FILENAME}')")
+        print(f"      is placed in the directory: '{SAVED_MODEL_DIR}'")
+        print(f"      This structure should be part of your Docker image if deploying with Docker (e.g., app/saved_models/{MODEL_BUNDLE_FILENAME}).")
+        return 
     try:
-        model_bundle = joblib.load(actual_model_path)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] INFO: Loading joblib bundle from {MODEL_PATH}...")
+        model_bundle = joblib.load(MODEL_PATH)
         model = model_bundle.get("model")
         scaler = model_bundle.get("scaler")
         if model is None or scaler is None:
-            print(f"ERROR: 'model' or 'scaler' not found in the loaded joblib bundle from {actual_model_path}.")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: 'model' or 'scaler' key not found in the loaded joblib bundle from {MODEL_PATH}.")
         else:
-            print(f"Model and scaler loaded successfully from {actual_model_path}.")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] INFO: Model (expected type: '{CHOSEN_MODEL_TYPE_FOR_LOGGING}') and scaler loaded successfully from {MODEL_PATH}.")
     except Exception as e:
-        print(f"Error loading model from {actual_model_path}: {e}")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: Exception during model loading from {MODEL_PATH}: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # --- Pydantic Models ---
@@ -124,94 +96,135 @@ class PredictionResponse(BaseModel):
     filename: str
 
 # --- Helper Functions ---
-def pad_if_short(audio_data: np.ndarray, sample_rate: int, min_duration: float) -> np.ndarray:
+def pad_if_short(audio_data: np.ndarray, sample_rate: int, min_duration: float, filename_for_log: str) -> np.ndarray:
     target_len = int(sample_rate * min_duration)
+    current_duration = len(audio_data) / sample_rate
     if len(audio_data) < target_len:
         pad_width = target_len - len(audio_data)
+        print(f"[{filename_for_log}] INFO: Padding audio from {current_duration:.2f}s to {min_duration:.2f}s (target samples: {target_len}, current: {len(audio_data)}).")
         return np.pad(audio_data, (0, pad_width), mode='constant')
+    print(f"[{filename_for_log}] INFO: Audio duration {current_duration:.2f}s is >= min_duration {min_duration:.2f}s. No padding needed.")
     return audio_data
 
-def extract_embedding(audio_data: np.ndarray, sample_rate: int, content_type="music", embedding_size=512) -> np.ndarray | None:
+def extract_embedding(audio_data: np.ndarray, sample_rate: int, filename_for_log: str) -> np.ndarray | None:
+    print(f"[{filename_for_log}] INFO: Starting embedding extraction. Initial audio shape: {audio_data.shape}, sample rate: {sample_rate}Hz.")
     try:
         if len(audio_data.shape) > 1 and audio_data.shape[1] > 1:
+            print(f"[{filename_for_log}] INFO: Audio is stereo, converting to mono.")
             audio_data = np.mean(audio_data, axis=1)
+            print(f"[{filename_for_log}] INFO: Mono audio shape: {audio_data.shape}.")
+        
         if sample_rate != TARGET_SR:
+            print(f"[{filename_for_log}] INFO: Resampling from {sample_rate}Hz to {TARGET_SR}Hz.")
             audio_data = librosa.resample(audio_data, orig_sr=sample_rate, target_sr=TARGET_SR)
-            sample_rate = TARGET_SR
-        audio_data = pad_if_short(audio_data, sample_rate, MIN_AUDIO_DURATION_SEC)
-        # Reverted to "music" as "speech" caused issues with default OpenL3 loader
-        emb, _ = openl3.get_audio_embedding(audio_data, sample_rate, content_type="music", embedding_size=embedding_size, hop_size=0.5)
-        if emb.shape[0] == 0: return None
-        return np.mean(emb, axis=0)
+            sample_rate = TARGET_SR 
+            print(f"[{filename_for_log}] INFO: Resampled audio shape: {audio_data.shape}.")
+        
+        audio_data = pad_if_short(audio_data, sample_rate, MIN_AUDIO_DURATION_SEC, filename_for_log)
+        
+        print(f"[{filename_for_log}] INFO: Calling OpenL3 get_audio_embedding (content_type='music'). Final audio length for OpenL3: {len(audio_data)/sample_rate:.2f}s.")
+        emb, ts = openl3.get_audio_embedding(audio_data, sample_rate, content_type="music", embedding_size=512, hop_size=0.5)
+        
+        if emb.shape[0] == 0: 
+            print(f"[{filename_for_log}] WARNING: OpenL3 returned empty embedding. This can happen if audio is too short or silent after processing.")
+            return None
+        
+        mean_embedding = np.mean(emb, axis=0)
+        print(f"[{filename_for_log}] INFO: Embedding extracted successfully. Shape: {mean_embedding.shape}.")
+        return mean_embedding
     except Exception as e:
-        print(f"Error during embedding extraction: {e}")
+        print(f"[{filename_for_log}] ERROR: Exception during embedding extraction: {e}")
+        import traceback
+        traceback.print_exc() 
         return None
 
 # --- API Endpoint ---
 @app.post("/analyze_audio/", response_model=PredictionResponse)
 async def analyze_audio(file: UploadFile = File(...)):
+    request_received_time = time.time()
+    log_prefix = f"[{file.filename} - {time.strftime('%Y-%m-%d %H:%M:%S')}]"
+    print(f"\n{log_prefix} INFO: === New Request: Received file: {file.filename}, Content-Type: {file.content_type} ===")
+
     if model is None or scaler is None:
-        raise HTTPException(status_code=503, detail="Model or scaler not loaded. Check server logs.")
+        print(f"{log_prefix} ERROR: Model or scaler not loaded at request time. This shouldn't happen if startup was successful.")
+        raise HTTPException(status_code=503, detail="Model or scaler not loaded. Please check server startup logs.")
     
-    # Read uploaded file content
+    print(f"{log_prefix} INFO: Reading file content...")
     file_content = await file.read()
-    
-    # Use an in-memory buffer for pydub
+    print(f"{log_prefix} INFO: File content read, length: {len(file_content)} bytes.")
     audio_buffer = io.BytesIO(file_content)
     
-    temp_wav_path = f"temp_converted_{file.filename}.wav" # For soundfile to read from after pydub
+    temp_wav_path = f"temp_converted_{time.time_ns()}_{file.filename}.wav"
 
     try:
-        # Load audio with pydub (handles various formats)
-        # pydub might need the file extension to guess format, or you can specify it
-        # For uploaded files, it's safer to let it infer or catch errors.
+        print(f"{log_prefix} INFO: Attempting to load audio with pydub...")
         try:
             audio_segment = AudioSegment.from_file(audio_buffer)
-        except Exception as pydub_err: # Catch pydub specific errors
-            print(f"Pydub error loading file {file.filename}: {pydub_err}")
-            raise HTTPException(status_code=400, detail=f"Could not process audio format: {pydub_err}")
+            print(f"{log_prefix} INFO: Audio loaded with pydub. Duration: {len(audio_segment)/1000.0:.2f}s, Channels: {audio_segment.channels}, Frame Rate: {audio_segment.frame_rate}Hz.")
+        except Exception as pydub_err:
+            print(f"{log_prefix} ERROR: Pydub error loading audio: {pydub_err}")
+            raise HTTPException(status_code=400, detail=f"Could not process audio format with pydub: {pydub_err}")
 
-        # Export to WAV format in memory (or to a temp file if sf.read needs path)
-        # Forcing WAV ensures soundfile can read it.
-        # Soundfile typically needs a file path or a file-like object that supports seek.
-        # Exporting to a temp file is more robust here.
+        print(f"{log_prefix} INFO: Exporting audio to temporary WAV file: {temp_wav_path}")
         audio_segment.export(temp_wav_path, format="wav")
+        print(f"{log_prefix} INFO: Audio exported to WAV successfully.")
         
-        # Now read the standardized WAV file with soundfile
+        print(f"{log_prefix} INFO: Reading standardized WAV file with soundfile...")
         audio_data, sample_rate = sf.read(temp_wav_path)
+        print(f"{log_prefix} INFO: Audio read by soundfile. Sample rate: {sample_rate}, Shape: {audio_data.shape}, Duration: {len(audio_data)/sample_rate:.2f}s.")
 
-        embedding = extract_embedding(audio_data, sample_rate)
+        embedding = extract_embedding(audio_data, sample_rate, f"{file.filename} (API)")
         if embedding is None:
+            print(f"{log_prefix} ERROR: Failed to extract features (embedding was None).")
             raise HTTPException(status_code=500, detail="Could not extract features from audio.")
         
-        # L2 Normalization (if done during training, apply here too)
-        # This was not in your training script, so commenting out.
-        # If you add it to training, uncomment here.
-        # embedding_norm = np.linalg.norm(embedding)
-        # normalized_embedding = embedding / embedding_norm if embedding_norm > 0 else embedding
-        normalized_embedding = embedding # Assuming no explicit L2 norm in training
+        normalized_embedding = embedding 
+        print(f"{log_prefix} INFO: Embedding ready for scaling (no explicit L2 norm applied).")
 
+        print(f"{log_prefix} INFO: Scaling features...")
         scaled_embedding = scaler.transform(normalized_embedding.reshape(1, -1))
-        prediction_value = model.predict(scaled_embedding)[0]
-        # Your convention: Real=1, Fake=0
-        prediction_label = "REAL" if prediction_value == 1 else "FAKE"
-        
-        probabilities = model.predict_proba(scaled_embedding)[0]
-        
-        # Confidence for the predicted class
-        if prediction_label == "REAL": # Model predicted 1
-            confidence = probabilities[1] * 100 # Probability of class 1 (Real)
-        else: # Model predicted 0 (Fake)
-            confidence = probabilities[0] * 100 # Probability of class 0 (Fake)
+        print(f"{log_prefix} INFO: Features scaled successfully.")
 
+        print(f"{log_prefix} INFO: Making prediction with '{CHOSEN_MODEL_TYPE_FOR_LOGGING}' model...")
+        prediction_value = model.predict(scaled_embedding)[0]
+        print(f"{log_prefix} INFO: Raw prediction value from model: {prediction_value}")
+        
+        prediction_label = "REAL" if prediction_value == 1 else "FAKE" # Real=1, Fake=0
+        print(f"{log_prefix} INFO: Predicted label: {prediction_label}")
+        
+        print(f"{log_prefix} INFO: Getting prediction probabilities...")
+        if hasattr(model, "predict_proba"):
+            probabilities = model.predict_proba(scaled_embedding)[0]
+            print(f"{log_prefix} INFO: Probabilities: Class 0 (Fake)={probabilities[0]:.4f}, Class 1 (Real)={probabilities[1]:.4f}")
+            
+            if prediction_label == "REAL": 
+                confidence = probabilities[1] * 100 
+            else: 
+                confidence = probabilities[0] * 100 
+            print(f"{log_prefix} INFO: Calculated confidence for '{prediction_label}': {confidence:.2f}%")
+        else:
+            print(f"{log_prefix} WARNING: Model does not have predict_proba method. Setting confidence to -1 (unavailable).")
+            confidence = -1.0 
+
+    except HTTPException: 
+        print(f"{log_prefix} ERROR: HTTPException occurred.")
+        raise
     except Exception as e:
-        print(f"Error processing file {file.filename}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error processing audio: {str(e)}")
+        print(f"{log_prefix} ERROR: UNEXPECTED ERROR during processing: {e}")
+        import traceback
+        traceback.print_exc() 
+        raise HTTPException(status_code=500, detail=f"Unexpected error processing audio: {str(e)}")
     finally:
         if os.path.exists(temp_wav_path):
             os.remove(temp_wav_path)
+            print(f"{log_prefix} INFO: Cleaned up temporary file: {temp_wav_path}")
         await file.close()
+        print(f"{log_prefix} INFO: File stream closed.")
 
+    processing_end_time = time.time()
+    processing_time = processing_end_time - request_received_time
+    print(f"{log_prefix} INFO: Request processed successfully in {processing_time:.2f} seconds.")
+    print(f"{log_prefix} INFO: === Finished request for file: {file.filename} ===")
 
     return PredictionResponse(
         prediction=prediction_label,
@@ -223,12 +236,16 @@ async def analyze_audio(file: UploadFile = File(...)):
 @app.get("/", response_class=HTMLResponse)
 async def serve_frontend():
     html_file_path = os.path.join(STATIC_DIR, "index.html")
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] INFO: Attempting to serve frontend from: {html_file_path}")
     if not os.path.exists(html_file_path):
-        raise HTTPException(status_code=404, detail="Frontend not found.")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: Frontend HTML file not found at {html_file_path}")
+        raise HTTPException(status_code=404, detail=f"Frontend HTML not found. Expected at {html_file_path}")
     with open(html_file_path, "r", encoding="utf-8") as f:
         html_content = f.read()
     return HTMLResponse(content=html_content)
 
 # To run: uvicorn main:app --reload
-# Ensure 'saved_models/your_chosen_model_and_scaler.joblib' exists
-# and 'static_frontend/index.html' exists.
+# Ensure your model bundle is correctly placed, e.g.:
+# app/saved_models/model_and_scaler.joblib
+# And your frontend:
+# app/static_frontend/index.html
