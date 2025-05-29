@@ -1,6 +1,6 @@
 """
-Full WhatsApp webhook integration with audio analysis
-Connects WhatsApp -> Twilio -> Our API -> ML Analysis -> Response
+WhatsApp Integration Webhook for VoiceShield
+Complete integration: WhatsApp -> Twilio -> VoiceShield API -> ML Analysis -> Response
 """
 import time
 from fastapi import FastAPI, Form
@@ -16,11 +16,11 @@ from .utils import (
     get_help_message
 )
 
-app = FastAPI()
+app = FastAPI(title="VoiceShield WhatsApp Integration")
 
 
 @app.post("/whatsapp")
-async def whatsapp_webhook_full(
+async def whatsapp_webhook(
     From: str = Form(...),
     Body: str = Form(default=""),
     NumMedia: str = Form(default="0"),
@@ -28,10 +28,11 @@ async def whatsapp_webhook_full(
     MediaContentType0: str = Form(default="")
 ):
     """
-    Full WhatsApp webhook that processes audio and returns real analysis
+    Main WhatsApp webhook that processes both text and audio messages
+    Provides real AI voice analysis for audio messages
     """
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-    log_prefix = f"[WEBHOOK_FULL - {timestamp}]"
+    log_prefix = f"[WHATSAPP_WEBHOOK - {timestamp}]"
 
     print(f"\n{log_prefix} INFO: === New WhatsApp Message ===")
     print(f"{log_prefix} INFO: From: {From}")
@@ -46,24 +47,24 @@ async def whatsapp_webhook_full(
     # Check if Twilio is configured
     if not config.is_configured():
         missing_vars = config.get_missing_vars()
-        error_msg = f"❌ Configuração incompleta. Variáveis faltando: {', '.join(missing_vars)}"
+        error_msg = f"❌ Configuration incomplete. Missing variables: {', '.join(missing_vars)}"
         print(f"{log_prefix} ERROR: {error_msg}")
         resp.message(error_msg)
         return create_twiml_response(str(resp))
 
-    # Handle text messages (help, commands)
+    # Handle text messages (help, commands, echo)
     if NumMedia == "0" or not MediaUrl0:
         print(f"{log_prefix} INFO: Text message received")
 
         body_lower = Body.lower().strip()
 
-        if body_lower in ["ajuda", "help", "?"]:
+        if body_lower in ["help", "ajuda", "?"]:
             help_msg = get_help_message()
             resp.message(help_msg)
             print(f"{log_prefix} INFO: Help message sent")
         else:
             # Echo message with instructions
-            response_text = f"""📱 Mensagem recebida: "{Body}"
+            response_text = f"""📱 Message received: "{Body}"
 
 {get_help_message()}"""
             resp.message(response_text)
@@ -71,11 +72,11 @@ async def whatsapp_webhook_full(
 
         return create_twiml_response(str(resp))
 
-    # Handle audio messages
-    print(f"{log_prefix} INFO: Audio message detected - starting analysis")
+    # Handle audio messages - Real AI Analysis
+    print(f"{log_prefix} INFO: Audio message detected - starting AI analysis")
 
     # Send immediate acknowledgment
-    resp.message("🎤 Áudio recebido! Analisando... ⏳")
+    resp.message("🎤 Audio received! Analyzing with AI... ⏳")
 
     temp_audio_path = None
 
@@ -93,8 +94,8 @@ async def whatsapp_webhook_full(
 
         print(f"{log_prefix} INFO: Audio downloaded successfully: {temp_audio_path}")
 
-        # Step 2: Send audio to our analysis API
-        print(f"{log_prefix} INFO: Step 2 - Sending audio to analysis API")
+        # Step 2: Send audio to VoiceShield analysis API
+        print(f"{log_prefix} INFO: Step 2 - Sending audio to VoiceShield API")
         api_response = send_audio_to_api(temp_audio_path)
 
         if not api_response:
@@ -103,14 +104,14 @@ async def whatsapp_webhook_full(
             resp.message(error_msg)
             return create_twiml_response(str(resp))
 
-        print(f"{log_prefix} INFO: API analysis completed successfully")
+        print(f"{log_prefix} INFO: VoiceShield AI analysis completed successfully")
 
         # Step 3: Format and send response
         print(f"{log_prefix} INFO: Step 3 - Formatting response")
         formatted_response = format_analysis_response(api_response)
         resp.message(formatted_response)
 
-        print(f"{log_prefix} INFO: Analysis complete - response sent")
+        print(f"{log_prefix} INFO: Analysis complete - response sent to user")
 
     except Exception as e:
         print(f"{log_prefix} ERROR: Unexpected error during audio processing: {e}")
@@ -138,7 +139,7 @@ def create_twiml_response(twiml_content: str) -> FastAPIResponse:
         twiml_content: TwiML XML content as string
 
     Returns:
-        FastAPI Response with correct headers
+        FastAPI Response with correct headers for Twilio
     """
     return FastAPIResponse(
         content=twiml_content,
@@ -148,22 +149,33 @@ def create_twiml_response(twiml_content: str) -> FastAPIResponse:
         }
     )
 
-# Health check endpoint
-
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint for monitoring"""
     return {
         "status": "healthy",
-        "service": "whatsapp_webhook_full",
+        "service": "voiceshield_whatsapp_webhook",
         "twilio_configured": config.is_configured(),
         "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')
     }
 
+
+@app.get("/")
+async def root():
+    """Root endpoint with service information"""
+    return {
+        "service": "VoiceShield WhatsApp Integration",
+        "status": "running",
+        "webhook_endpoint": "/whatsapp",
+        "health_check": "/health",
+        "twilio_configured": config.is_configured()
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starting WhatsApp Full Integration Webhook...")
+    print("🚀 Starting VoiceShield WhatsApp Integration Webhook...")
     print(f"📱 Twilio configured: {config.is_configured()}")
     if not config.is_configured():
         print(f"⚠️  Missing variables: {config.get_missing_vars()}")

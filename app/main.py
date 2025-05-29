@@ -48,7 +48,7 @@ async def load_model_and_scaler():
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] INFO: Expected model path: {MODEL_PATH}")
 
     if not os.path.exists(SAVED_MODEL_DIR):
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] WARNING: Directory for saved models not found: {SAVED_MODEL_DIR}. Attempting to create it.")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] WARNING: Saved models directory not found: {SAVED_MODEL_DIR}. Attempting to create it.")
         try:
             os.makedirs(SAVED_MODEL_DIR, exist_ok=True)
         except Exception as e:
@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] INFO: Server shutdown.")
 
 # --- Application Setup ---
-app = FastAPI(title="Deepfake Voice Analyzer", lifespan=lifespan)
+app = FastAPI(title="VoiceShield - AI Voice Analyzer", lifespan=lifespan)
 
 origins = [
     "http://localhost",
@@ -276,7 +276,7 @@ async def analyze_audio(file: UploadFile = File(...)):
         filename=file.filename
     )
 
-# --- Route to serve HTML ---
+# --- Route to serve HTML frontend ---
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -291,9 +291,8 @@ async def serve_frontend():
         html_content = f.read()
     return HTMLResponse(content=html_content)
 
-# To run: uvicorn main:app --reload
+# To run: uvicorn app.main:app --host 0.0.0.0 --port 8000
 # Ensure your model bundle is correctly placed, e.g.:
 # app/saved_models/model_and_scaler.joblib
 # And your frontend:
 # app/static_frontend/index.html
-

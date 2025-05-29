@@ -1,5 +1,6 @@
 """
 Utilities for WhatsApp integration with Twilio
+Handles audio download, API communication, and response formatting
 """
 import os
 import requests
@@ -54,17 +55,17 @@ def download_audio_from_twilio(media_url: str, auth: Tuple[str, str]) -> Optiona
 
 def send_audio_to_api(audio_file_path: str, api_url: str = "http://localhost:8000/analyze_audio/") -> Optional[dict]:
     """
-    Send audio file to our analysis API
+    Send audio file to VoiceShield analysis API
 
     Args:
         audio_file_path: Path to audio file
-        api_url: URL of our analysis API endpoint
+        api_url: URL of VoiceShield analysis API endpoint
 
     Returns:
         API response dict or None if failed
     """
     try:
-        print(f"[UTILS] INFO: Sending audio to API: {api_url}")
+        print(f"[UTILS] INFO: Sending audio to VoiceShield API: {api_url}")
 
         with open(audio_file_path, 'rb') as audio_file:
             files = {'file': (os.path.basename(
@@ -74,12 +75,12 @@ def send_audio_to_api(audio_file_path: str, api_url: str = "http://localhost:800
             response.raise_for_status()
 
             result = response.json()
-            print(f"[UTILS] INFO: API response received: {result}")
+            print(f"[UTILS] INFO: VoiceShield API response received: {result}")
 
             return result
 
     except requests.exceptions.RequestException as e:
-        print(f"[UTILS] ERROR: Failed to send audio to API: {e}")
+        print(f"[UTILS] ERROR: Failed to send audio to VoiceShield API: {e}")
         return None
     except Exception as e:
         print(f"[UTILS] ERROR: Unexpected error sending audio to API: {e}")
@@ -88,13 +89,13 @@ def send_audio_to_api(audio_file_path: str, api_url: str = "http://localhost:800
 
 def format_analysis_response(api_response: dict) -> str:
     """
-    Format API response into user-friendly WhatsApp message
+    Format VoiceShield API response into user-friendly WhatsApp message
 
     Args:
-        api_response: Response from our analysis API
+        api_response: Response from VoiceShield analysis API
 
     Returns:
-        Formatted message string
+        Formatted message string in English
     """
     try:
         prediction = api_response.get('prediction', 'UNKNOWN')
@@ -114,24 +115,24 @@ def format_analysis_response(api_response: dict) -> str:
 
         # Format confidence
         if confidence >= 0:
-            confidence_text = f"Confiança: {confidence:.1f}%"
+            confidence_text = f"Confidence: {confidence:.1f}%"
         else:
-            confidence_text = "Confiança: N/A"
+            confidence_text = "Confidence: N/A"
 
-        # Create formatted message
-        message = f"""🎤 *Análise de Áudio Concluída*
+        # Create formatted message in English
+        message = f"""🎤 *Audio Analysis Complete*
 
-{emoji} *Resultado: {status_msg}*
+{emoji} *Result: {status_msg}*
 📊 {confidence_text}
 
-_Análise realizada pelo VoiceShield AI_"""
+_Analysis powered by VoiceShield AI_"""
 
         print(f"[UTILS] INFO: Formatted response: {message}")
         return message
 
     except Exception as e:
         print(f"[UTILS] ERROR: Failed to format response: {e}")
-        return "❌ Erro ao processar resultado da análise."
+        return "❌ Error processing analysis result."
 
 
 def cleanup_temp_file(file_path: str) -> None:
@@ -151,19 +152,19 @@ def cleanup_temp_file(file_path: str) -> None:
 
 def get_error_message(error_type: str = "general") -> str:
     """
-    Get user-friendly error messages
+    Get user-friendly error messages in English
 
     Args:
         error_type: Type of error (download, api, processing, general)
 
     Returns:
-        User-friendly error message
+        User-friendly error message in English
     """
     error_messages = {
-        "download": "❌ Erro ao baixar o áudio. Tente enviar novamente.",
-        "api": "❌ Erro na análise do áudio. Nosso sistema pode estar temporariamente indisponível.",
-        "processing": "❌ Erro ao processar o áudio. Verifique se o arquivo é um áudio válido.",
-        "general": "❌ Erro inesperado. Tente novamente em alguns instantes."
+        "download": "❌ Error downloading audio. Please try sending again.",
+        "api": "❌ Error analyzing audio. Our system may be temporarily unavailable.",
+        "processing": "❌ Error processing audio. Please check if the file is a valid audio.",
+        "general": "❌ Unexpected error. Please try again in a few moments."
     }
 
     return error_messages.get(error_type, error_messages["general"])
@@ -171,21 +172,21 @@ def get_error_message(error_type: str = "general") -> str:
 
 def get_help_message() -> str:
     """
-    Get help message for users
+    Get help message for users in English
 
     Returns:
-        Help message string
+        Help message string in English
     """
-    return """🤖 *VoiceShield - Detector de Áudio IA*
+    return """🤖 *VoiceShield - AI Voice Detector*
 
-📝 *Como usar:*
-• Envie um áudio (nota de voz)
-• Aguarde alguns segundos
-• Receba a análise: REAL ou FAKE
+📝 *How to use:*
+• Send an audio message (voice note)
+• Wait a few seconds
+• Receive analysis: REAL or FAKE
 
-⚡ *Funcionalidades:*
-• Detecção de vozes geradas por IA
-• Análise baseada em Machine Learning
-• Resposta rápida e automática
+⚡ *Features:*
+• AI-generated voice detection
+• Machine Learning based analysis
+• Fast and automatic response
 
-❓ *Dúvidas?* Envie "ajuda" para ver esta mensagem novamente."""
+❓ *Questions?* Send "help" to see this message again."""

@@ -29,5 +29,5 @@ class TwilioConfig:
         return missing
 
 
-# Global config instance
+# Global configuration instance
 config = TwilioConfig()
