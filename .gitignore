@@ -47,4 +47,6 @@ wheels/
 ehthumbs.db
 Thumbs.db
 .cursor
+.cursor.env
 ./results
+.env
