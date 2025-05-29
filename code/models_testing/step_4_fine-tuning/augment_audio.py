@@ -11,7 +11,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(SCRIPTS_DIR))
 AUDIO_DIR = os.path.join(ROOT_DIR, 'assets', 'audio', 'processed_audio')
 AUGMENTED_DIR = os.path.join(ROOT_DIR, 'assets', 'audio', 'augmented_audio')
 
-MIN_DURATION = 3.0  # seconds
+MIN_DURATION = 3.0  
 TARGET_SR = 16000
 
 os.makedirs(AUGMENTED_DIR, exist_ok=True)
@@ -37,7 +37,30 @@ def apply_pitch_shift(y, sr, n_steps=2):
 def apply_time_stretch(y, rate=0.9):
     return librosa.effects.time_stretch(y.astype(np.float32), rate=rate)
 
+def check_augmented_files_exist(base_name, output_dir):
+    """Check if all augmented versions of a file already exist."""
+    suffixes = ['_orig.wav', '_noise.wav', '_reverb.wav', '_pitch.wav', '_stretch.wav']
+    for suffix in suffixes:
+        file_path = os.path.join(output_dir, f"{base_name}{suffix}")
+        if not os.path.exists(file_path):
+            return False
+    return True
+
+def count_existing_files(output_dir):
+    """Count how many .wav files already exist in the output directory."""
+    if not os.path.exists(output_dir):
+        return 0
+    return len([f for f in os.listdir(output_dir) if f.endswith('.wav')])
+
 def augment_file(file_path, output_dir):
+    """Augment a single audio file with various effects."""
+    base_name = Path(file_path).stem
+    
+    # Check if augmented files already exist
+    if check_augmented_files_exist(base_name, output_dir):
+        print(f"⏭️  Skipping {base_name} - augmented files already exist")
+        return
+    
     try:
         y, sr = sf.read(file_path)
         if len(y.shape) > 1:
@@ -47,7 +70,6 @@ def augment_file(file_path, output_dir):
             sr = TARGET_SR
 
         y = pad_if_short(y, sr)
-        base_name = Path(file_path).stem
 
         # Original
         sf.write(os.path.join(output_dir, f"{base_name}_orig.wav"), y, sr)
@@ -66,12 +88,21 @@ def augment_file(file_path, output_dir):
         stretched = pad_if_short(stretched, sr)
         sf.write(os.path.join(output_dir, f"{base_name}_stretch.wav"), stretched, sr)
 
+        print(f"✅ Processed {base_name}")
+
     except Exception as e:
         import traceback
         print(f"\n❌ Error processing {file_path}: {e}")
         traceback.print_exc()
 
 if __name__ == "__main__":
+    print("🎵 Starting audio augmentation process...")
+    print(f"📁 Source directory: {AUDIO_DIR}")
+    print(f"📁 Output directory: {AUGMENTED_DIR}")
+    
+    total_processed = 0
+    total_skipped = 0
+    
     for subdir in os.listdir(AUDIO_DIR):
         full_path = os.path.join(AUDIO_DIR, subdir)
         if os.path.isdir(full_path):
@@ -79,5 +110,31 @@ if __name__ == "__main__":
             os.makedirs(out_path, exist_ok=True)
 
             files = [f for f in os.listdir(full_path) if f.endswith('.wav')]
+            existing_count = count_existing_files(out_path)
+            
+            print(f"\n📂 Processing directory: {subdir}")
+            print(f"   📊 Input files: {len(files)} | Existing augmented files: {existing_count}")
+            
+            # If we already have the expected number of augmented files, skip the entire directory
+            expected_augmented_files = len(files) * 5  # 5 augmented versions per file
+            if existing_count >= expected_augmented_files:
+                print(f"   ⏭️  Skipping {subdir} - all files already augmented ({existing_count} files)")
+                total_skipped += len(files)
+                continue
+            
+            files_processed_in_dir = 0
             for file in tqdm(files, desc=f"Augmenting {subdir}"):
-                augment_file(os.path.join(full_path, file), out_path)
+                base_name = Path(file).stem
+                if not check_augmented_files_exist(base_name, out_path):
+                    augment_file(os.path.join(full_path, file), out_path)
+                    files_processed_in_dir += 1
+                    total_processed += 1
+                else:
+                    total_skipped += 1
+            
+            print(f"   ✅ Processed {files_processed_in_dir} new files in {subdir}")
+    
+    print(f"\n🎯 Summary:")
+    print(f"   ✅ Files processed: {total_processed}")
+    print(f"   ⏭️  Files skipped: {total_skipped}")
+    print("🏁 Audio augmentation complete!")
