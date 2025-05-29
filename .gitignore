@@ -6,6 +6,9 @@ assets/audio/results/
 code/assets/audio/results/
 results_second_testing/
 
+# Model training results
+code/models_testing/step_4_fine-tuning/results/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -44,3 +47,4 @@ wheels/
 ehthumbs.db
 Thumbs.db
 .cursor
+./results
