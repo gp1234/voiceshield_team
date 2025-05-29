@@ -42,4 +42,4 @@ wheels/
 .Trashes
 ehthumbs.db
 Thumbs.db
-.cursor
+.cursor.env
