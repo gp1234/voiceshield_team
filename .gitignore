@@ -43,3 +43,4 @@ wheels/
 ehthumbs.db
 Thumbs.db
 .cursor.env
+.env
