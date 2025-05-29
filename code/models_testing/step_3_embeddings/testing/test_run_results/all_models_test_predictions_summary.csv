@@ -1,6 +1,13 @@
 file,logistic_pred_label,logistic_confidence,random_forest_pred_label,random_forest_confidence,svm_pred_label,svm_confidence,mlp_pred_label,mlp_confidence
-record_1_real.mp3,REAL,98.1,FAKE,90.0,FAKE,74.07,REAL,98.28
+what_real.mp3,REAL,100.0,FAKE,80.0,FAKE,70.91,REAL,89.73
+record_1_real.mp3,REAL,99.96,FAKE,90.0,FAKE,74.07,REAL,98.28
+common_voice_en_41247199_real.mp3,REAL,100.0,FAKE,73.0,REAL,40.89,REAL,95.35
+common_voice_en_41227194_real.mp3,REAL,100.0,FAKE,78.0,REAL,42.53,REAL,98.72
+common_voice_en_41247202_real.mp3,REAL,100.0,FAKE,71.0,FAKE,66.29,REAL,96.09
+common_voice_en_41247203_real.mp3,REAL,100.0,FAKE,76.0,FAKE,65.2,REAL,95.21
 record_4_fake.mp3,REAL,100.0,REAL,52.0,FAKE,75.78,FAKE,53.27
-record_3_fake.wav,FAKE,99.67,FAKE,94.0,FAKE,92.96,FAKE,93.91
-ElevenLabs_fake.mp3,FAKE,99.6,FAKE,91.0,FAKE,96.4,FAKE,77.44
-recording_5_real.mp3,REAL,99.99,FAKE,75.0,FAKE,69.31,REAL,99.34
+record_3_fake.wav,FAKE,100.0,FAKE,94.0,FAKE,92.96,FAKE,93.91
+ElevenLabs_fake.mp3,FAKE,100.0,FAKE,91.0,FAKE,96.4,FAKE,77.41
+common_voice_en_41247255_real.mp3,REAL,100.0,FAKE,79.0,FAKE,60.6,REAL,87.08
+recording_5_real.mp3,REAL,100.0,FAKE,75.0,FAKE,69.31,REAL,99.34
+common_voice_en_41247200_real.mp3,REAL,100.0,FAKE,77.0,FAKE,68.54,REAL,88.38
