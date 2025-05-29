@@ -2,9 +2,15 @@
 assets/audio/processed_audio/
 code/assets/audio/augmented_audio/
 code/assets/audio/processed_audio/
+code/assets/audio/augmented_audio/
+code/assets/audio/processed_audio/
 assets/audio/results/
 code/assets/audio/results/
+code/assets/audio/results/
 results_second_testing/
+
+# Model training results
+code/models_testing/step_4_fine-tuning/results/
 
 # Model training results
 code/models_testing/step_4_fine-tuning/results/
