@@ -84,6 +84,7 @@ termcolor==3.1.0
 threadpoolctl==3.6.0
 tifffile==2025.3.30
 tqdm==4.67.1
+twilio==9.3.7
 typing-inspection==0.4.0
 typing_extensions==4.13.2
 tzdata==2025.2
