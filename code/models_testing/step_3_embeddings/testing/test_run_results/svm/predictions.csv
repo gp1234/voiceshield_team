@@ -1,6 +1,13 @@
 file,prediction_numeric,prediction_label,confidence_percent
+what_real.mp3,0,FAKE,70.91
 record_1_real.mp3,0,FAKE,74.07
+common_voice_en_41247199_real.mp3,1,REAL,40.89
+common_voice_en_41227194_real.mp3,1,REAL,42.53
+common_voice_en_41247202_real.mp3,0,FAKE,66.29
+common_voice_en_41247203_real.mp3,0,FAKE,65.2
 record_4_fake.mp3,0,FAKE,75.78
 record_3_fake.wav,0,FAKE,92.96
 ElevenLabs_fake.mp3,0,FAKE,96.4
+common_voice_en_41247255_real.mp3,0,FAKE,60.6
 recording_5_real.mp3,0,FAKE,69.31
+common_voice_en_41247200_real.mp3,0,FAKE,68.54
