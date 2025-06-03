@@ -16,7 +16,7 @@ SCRIPTS_DIR = os.path.dirname(current_file_path)
 ROOT_DIR = os.path.dirname(SCRIPTS_DIR)
 
 MODELS_DIR = os.path.join(ROOT_DIR,  "results") 
-TEST_AUDIO_DIR = os.path.join(SCRIPTS_DIR, "samples") 
+TEST_AUDIO_DIR ="/Users/giovannipoveda/Documents/deepfake_voice_clonning/code/assets/samples/audios"
 OUTPUT_DIR = os.path.join(SCRIPTS_DIR, "test_run_results")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
