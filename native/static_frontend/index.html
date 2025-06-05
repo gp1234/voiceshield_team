@@ -357,9 +357,24 @@
         if (!isRecording) {
           try {
             const stream = await navigator.mediaDevices.getUserMedia({
-              audio: true,
+              audio: {
+                sampleRate: 16000, // Match your TARGET_SR
+                channelCount: 1, // Mono audio
+                echoCancellation: false, // Disable audio processing that might affect analysis
+                noiseSuppression: false, // Disable noise suppression
+                autoGainControl: false, // Disable automatic gain control
+              },
             });
-            mediaRecorder = new MediaRecorder(stream);
+
+            // Try to use uncompressed format if available
+            let options = {};
+            if (MediaRecorder.isTypeSupported("audio/webm;codecs=pcm")) {
+              options.mimeType = "audio/webm;codecs=pcm";
+            } else if (MediaRecorder.isTypeSupported("audio/wav")) {
+              options.mimeType = "audio/wav";
+            }
+
+            mediaRecorder = new MediaRecorder(stream, options);
 
             mediaRecorder.ondataavailable = (event) => {
               audioChunks.push(event.data);
