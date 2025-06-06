@@ -1,219 +1,286 @@
 import os
-import numpy as np
-import pandas as pd
+import re
+import csv
 import joblib
-import soundfile as sf
 import openl3
 import librosa
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import classification_report, confusion_matrix
-from tqdm import tqdm
 
-# --- Path Definitions ---
-current_file_path = os.path.abspath(__file__)
-SCRIPTS_DIR = os.path.dirname(current_file_path)
-ROOT_DIR = os.path.dirname(SCRIPTS_DIR)
+from pathlib import Path
+from collections import Counter
+from sklearn.metrics import (
+    classification_report,
+    accuracy_score,
+    confusion_matrix,
+    roc_curve,
+    auc
+)
 
-MODELS_DIR = os.path.join(ROOT_DIR,  "results") 
-TEST_AUDIO_DIR ="/Users/giovannipoveda/Documents/deepfake_voice_clonning/code/assets/samples/audios"
-OUTPUT_DIR = os.path.join(SCRIPTS_DIR, "test_run_results")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# ──────────────────────────────────────────────────────────────────────────────
+# 1) Paths and settings
+# ──────────────────────────────────────────────────────────────────────────────
 
-# --- Configuration for Audio Processing ---
-TARGET_SR = 16000 # OpenL3 models generally expect a standard sample rate, 48kHz for music/env, 16kHz for speech if specific models used
-MIN_AUDIO_DURATION_SEC = 3.0
+# Folder containing your saved models (each model has "<ModelName>_bundle.joblib")
+MODELS_DIR = Path("/Users/giovannipoveda/Documents/deepfake_voice_clonning/code/models/step_5_embeddings_balance_set/training_results")
 
-def pad_if_short(audio_data: np.ndarray, sample_rate: int, min_duration: float) -> np.ndarray:
-    target_len = int(sample_rate * min_duration)
-    if len(audio_data) < target_len:
-        pad_width = target_len - len(audio_data)
-        return np.pad(audio_data, (0, pad_width), mode='constant')
-    return audio_data
+# Folder containing new audio samples for testing (files end with "_real.mp3" or "_fake.mp3")
+SAMPLE_DIR = Path(
+    "/Users/giovannipoveda/Documents/deepfake_voice_clonning/code/assets/audio/samples/audios"
+)
 
-def extract_embedding(audio_path):
+# Where to store test results
+OUTPUT_DIR = Path("test_run_results")
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# Audio and embedding settings
+EMBEDDING_SAMPLE_RATE = 16000
+EMBEDDING_CONTENT_TYPE = "env"   # must match whatever was used during training
+EMBEDDING_EMBEDDING_SIZE = 512      # training used size=512
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 2) Helper functions
+# ──────────────────────────────────────────────────────────────────────────────
+
+def extract_embedding_mean(audio_path: Path):
+    """
+    Load an audio file (mp3, wav, etc.), resample to EMBEDDING_SAMPLE_RATE,
+    compute the OpenL3 embedding (content_type="speech", embedding_size=512),
+    then return the mean embedding vector over time (shape=(512,)).
+    """
+    # Load with librosa
+    audio, sr = librosa.load(str(audio_path), sr=EMBEDDING_SAMPLE_RATE, mono=True)
+    # Get embedding for each frame: shape (n_frames, embedding_dim), and timestamps
+    emb, ts = openl3.get_audio_embedding(
+        audio,
+        sr,
+        content_type=EMBEDDING_CONTENT_TYPE,
+        embedding_size=EMBEDDING_EMBEDDING_SIZE,
+    )
+    # Take mean over frames → single vector
+    return np.mean(emb, axis=0)
+
+
+def load_model_bundle(bundle_path: Path):
+    """
+    Load a joblib “bundle” dictionary containing {"model": ..., "scaler": ...}.
+    Returns (model, scaler).
+    """
+    bundle = joblib.load(str(bundle_path))
+    model = bundle.get("model", None)
+    scaler = bundle.get("scaler", None)
+    return model, scaler
+
+
+def infer_true_label_from_filename(filename: str):
+    """
+    Given a filename ending in "_real.mp3" or "_fake.mp3",
+    return 1 for real, 0 for fake. If neither is matched, return None.
+    """
+    if filename.lower().endswith("_real.mp3") or filename.lower().endswith("_real.wav"):
+        return 1
+    if filename.lower().endswith("_fake.mp3") or filename.lower().endswith("_fake.wav"):
+        return 0
+    return None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 3) Gather all sample files and their true labels
+# ──────────────────────────────────────────────────────────────────────────────
+
+sample_files = []
+for f in sorted(SAMPLE_DIR.iterdir()):
+    if not f.is_file():
+        continue
+    true_label = infer_true_label_from_filename(f.name)
+    if true_label is None:
+        continue
+    sample_files.append((f, true_label))
+
+if not sample_files:
+    print("‼ No valid sample files found under:", SAMPLE_DIR)
+    exit(1)
+
+print(f"▶ Found {len(sample_files)} sample files for testing.")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 4) Precompute embeddings for all samples (store in-memory)
+# ──────────────────────────────────────────────────────────────────────────────
+
+print("▶ Extracting embeddings for all samples…")
+sample_embeddings = {}  # maps Path → np.ndarray of shape (512,)
+for audio_path, true_label in sample_files:
     try:
-        audio, sr = sf.read(audio_path)
-        if len(audio.shape) > 1 and audio.shape[1] > 1: 
-            audio = np.mean(audio, axis=1)
-        
-        # Resample if necessary. OpenL3's default models (music/env) often work with 48kHz.
-        # If using a specific speech model variant, it might prefer 16kHz.
-        # For now, let's stick to TARGET_SR for consistency, but be mindful of OpenL3's model expectations.
-        if sr != TARGET_SR: 
-            audio = librosa.resample(audio, orig_sr=sr, target_sr=TARGET_SR)
-            sr = TARGET_SR
-            
-        audio = pad_if_short(audio, sr, MIN_AUDIO_DURATION_SEC)
-        
-        # Reverted content_type to "music" to resolve the "Invalid content type" error.
-        # OpenL3's get_audio_embedding might not directly support "speech" as a general content_type.
-        # It might require a specific speech model to be loaded if that's the intention.
-        # For now, "music" is a safer default that was previously working.
-        emb, ts = openl3.get_audio_embedding(audio, sr, content_type="music", embedding_size=512, hop_size=0.5)
-        
-        if emb.shape[0] == 0:
-            print(f"Warning: Empty embedding for {os.path.basename(audio_path)} after processing.")
-            return None
-        return np.mean(emb, axis=0)
+        emb_vec = extract_embedding_mean(audio_path)
     except Exception as e:
-        print(f"Failed to extract embedding for {os.path.basename(audio_path)}: {e}")
-        return None
+        print(f"‼ Failed to extract embedding from {audio_path.name}: {e}")
+        continue
+    sample_embeddings[audio_path] = (emb_vec, true_label)
 
-def test_model(model_name, model, scaler, test_files, true_labels_dict=None):
-    print(f"\n▶️ Testing {model_name}")
-    
-    model_results_dir = os.path.join(OUTPUT_DIR, model_name) 
-    os.makedirs(model_results_dir, exist_ok=True)
-    
-    embeddings = []
-    file_names_processed = []
-    actual_labels_for_report = []
-    
-    for file_path in tqdm(test_files, desc=f"Processing files for {model_name}"):
-        base_name = os.path.basename(file_path)
-        embedding = extract_embedding(file_path)
-        if embedding is not None:
-            embeddings.append(embedding)
-            file_names_processed.append(base_name)
-            if true_labels_dict and base_name in true_labels_dict:
-                actual_labels_for_report.append(true_labels_dict[base_name])
-    
-    if not embeddings:
-        print(f"No valid embeddings extracted for {model_name}. Skipping.")
-        return None
-    
-    X_test_np = np.array(embeddings)
-    X_test_scaled = scaler.transform(X_test_np) 
-    y_pred = model.predict(X_test_scaled)
-    
-    y_proba = []
-    if hasattr(model, "predict_proba"):
-        proba_all_classes = model.predict_proba(X_test_scaled)
-        for i, p_val in enumerate(y_pred):
-            if p_val == 1: 
-                y_proba.append(proba_all_classes[i][1] * 100) 
-            else: 
-                y_proba.append(proba_all_classes[i][0] * 100) 
-    else:
-        y_proba = [np.nan] * len(y_pred)
+if not sample_embeddings:
+    print("‼ No embeddings were successfully extracted.")
+    exit(1)
 
-    results_data = []
-    for i in range(len(file_names_processed)):
-        pred_label_text = "REAL" if y_pred[i] == 1 else "FAKE" 
-        results_data.append({
-            "file": file_names_processed[i],
-            "prediction_numeric": y_pred[i],
-            "prediction_label": pred_label_text,
-            "confidence_percent": round(y_proba[i], 2) if not np.isnan(y_proba[i]) else "N/A"
-        })
+print(f"▶ Extracted embeddings for {len(sample_embeddings)} files.")
 
-    results_df = pd.DataFrame(results_data)
-    results_df.to_csv(os.path.join(model_results_dir, "predictions.csv"), index=False)
-    
-    print("\nPredictions:")
-    for _, row in results_df.iterrows():
-        print(f"{row['file']}: {row['prediction_label']} (Confidence: {row['confidence_percent']}%)")
 
-    if true_labels_dict and actual_labels_for_report:
-        if len(actual_labels_for_report) == len(y_pred):
-            target_names_report = ['Fake (0)', 'Real (1)'] 
-            report_str = classification_report(actual_labels_for_report, y_pred, target_names=target_names_report, zero_division=0)
-            print(f"\nClassification Report for {model_name} (on provided labels):\n", report_str)
-            with open(os.path.join(model_results_dir, "classification_report.txt"), "w") as f:
-                f.write(report_str)
-            
-            cm = confusion_matrix(actual_labels_for_report, y_pred, labels=[0, 1]) 
-            plt.figure(figsize=(6, 5))
-            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues_r', 
-                        xticklabels=target_names_report, yticklabels=target_names_report)
-            plt.title(f'Confusion Matrix - {model_name}')
-            plt.xlabel('Predicted Label')
-            plt.ylabel('True Label')
-            plt.tight_layout()
-            plt.savefig(os.path.join(model_results_dir, "confusion_matrix.png"))
-            plt.close()
+# ──────────────────────────────────────────────────────────────────────────────
+# 5) Load each model and run inference on the sample embeddings
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Prepare a summary CSV with header: filename,true_label,<Model1>,<Model2>,...
+model_names = []
+bundles = {}  # model_name -> (model, scaler)
+for model_folder in sorted(MODELS_DIR.iterdir()):
+    if not model_folder.is_dir():
+        continue
+    # Expect a file named "<ModelName>_bundle.joblib" inside model_folder
+    bundle_file = next(model_folder.glob("*_bundle.joblib"), None)
+    if bundle_file is None:
+        continue
+    model_name = model_folder.name  # e.g. "LogisticRegression"
+    model, scaler = load_model_bundle(bundle_file)
+    if model is None:
+        continue
+    model_names.append(model_name)
+    bundles[model_name] = (model, scaler)
+
+if not bundles:
+    print("‼ No model bundles found under:", MODELS_DIR)
+    exit(1)
+
+print(f"▶ Loaded {len(bundles)} models: {model_names}")
+
+# Create output subfolders under OUTPUT_DIR for each model
+for m in model_names:
+    (OUTPUT_DIR / m).mkdir(parents=True, exist_ok=True)
+
+# Prepare summary CSV file
+summary_csv_path = OUTPUT_DIR / "all_models_test_predictions_summary.csv"
+with open(summary_csv_path, "w", newline="") as csvfile:
+    writer = csv.writer(csvfile)
+    header = ["filename", "true_label"] + model_names
+    writer.writerow(header)
+
+    # We will store per-model predictions in a dict of lists
+    per_model_preds = {m: [] for m in model_names}
+    filenames = []
+    true_labels = []
+
+    # For each sample, run through all models
+    for audio_path, true_label in sample_files:
+        if audio_path not in sample_embeddings:
+            continue
+        filenames.append(audio_path.name)
+        true_labels.append(true_label)
+
+        emb_vec, _ = sample_embeddings[audio_path]
+        row = [audio_path.name, true_label]
+
+        for m in model_names:
+            model, scaler = bundles[m]
+            # Scale if needed
+            if scaler is not None:
+                emb_scaled = scaler.transform(emb_vec.reshape(1, -1))
+            else:
+                emb_scaled = emb_vec.reshape(1, -1)
+
+            # Predict probability or label
+            try:
+                pred_prob = model.predict_proba(emb_scaled)[0, 1]
+                pred_label = int(pred_prob >= 0.5)
+            except AttributeError:
+                # Some models (e.g. if user replaced SVM without probability) might only have predict()
+                pred_label = int(model.predict(emb_scaled)[0])
+
+            row.append(pred_label)
+            per_model_preds[m].append(pred_label)
+
+        writer.writerow(row)
+
+print(f"▶ Wrote summary CSV: {summary_csv_path}")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 6) For each model: compute metrics and save report + confusion matrix + ROC
+# ──────────────────────────────────────────────────────────────────────────────
+
+for m in model_names:
+    preds = per_model_preds[m]
+    y_true = true_labels
+    y_pred = preds
+
+    # Metrics
+    acc = accuracy_score(y_true, y_pred)
+    report = classification_report(y_true, y_pred, digits=4)
+    cm = confusion_matrix(y_true, y_pred)
+
+    # Create model-specific folder under OUTPUT_DIR
+    model_out_dir = OUTPUT_DIR / m
+
+    # 1) Save report.txt
+    report_path = model_out_dir / "report.txt"
+    with open(report_path, "w") as f:
+        f.write(f"Accuracy: {acc:.4f}\n\n")
+        f.write(report)
+
+    # 2) Save confusion_matrix.png
+    plt.figure(figsize=(5, 4))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=["Fake", "Real"],
+        yticklabels=["Fake", "Real"],
+    )
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.title(f"{m} - Confusion Matrix")
+    plt.tight_layout()
+    cm_path = model_out_dir / "confusion_matrix.png"
+    plt.savefig(cm_path)
+    plt.close()
+
+    # 3) Save ROC curve (if probabilities available)
+    # Recompute probabilities if possible
+    model, scaler = bundles[m]
+    prob_list = []
+    for audio_path, _ in sample_files:
+        if audio_path not in sample_embeddings:
+            continue
+        emb_vec, _ = sample_embeddings[audio_path]
+        if scaler is not None:
+            emb_scaled = scaler.transform(emb_vec.reshape(1, -1))
         else:
-            print("Warning: Mismatch between #true_labels and #predictions. Skipping report generation.")
-    
-    return results_df
+            emb_scaled = emb_vec.reshape(1, -1)
+        try:
+            prob = model.predict_proba(emb_scaled)[0, 1]
+        except AttributeError:
+            prob = None
+        prob_list.append(prob)
 
-def main():
-    models_and_scalers = {}
-    if not os.path.exists(MODELS_DIR): 
-        print(f"ERROR: Trained models directory not found: {MODELS_DIR}")
-        return
+    # Check if any probability is not None
+    if any([p is not None for p in prob_list]):
+        # Filter out None (some rare models might not have predict_proba)
+        y_prob = np.array([p if p is not None else 0.0 for p in prob_list])
+        fpr, tpr, _ = roc_curve(y_true, y_prob)
+        roc_auc = auc(fpr, tpr)
 
-    print(f"Loading trained models from subdirectories in: {MODELS_DIR}")
-    for model_folder_name in os.listdir(MODELS_DIR):
-        potential_model_dir_path = os.path.join(MODELS_DIR, model_folder_name)
-        if os.path.isdir(potential_model_dir_path): 
-            bundle_path = os.path.join(potential_model_dir_path, "model_and_scaler.joblib")
-            if os.path.isfile(bundle_path):
-                try:
-                    bundle = joblib.load(bundle_path)
-                    if "model" in bundle and "scaler" in bundle:
-                        models_and_scalers[model_folder_name] = bundle
-                        print(f"Loaded model and scaler for: {model_folder_name}")
-                    else:
-                        print(f"Warning: Bundle incomplete (missing 'model' or 'scaler'): {bundle_path}")
-                except Exception as e:
-                    print(f"Error loading bundle {bundle_path}: {e}")
+        plt.figure(figsize=(5, 4))
+        plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.4f}")
+        plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title(f"{m} - ROC Curve")
+        plt.legend(loc="lower right")
+        plt.tight_layout()
+        roc_path = model_out_dir / "roc_curve.png"
+        plt.savefig(roc_path)
+        plt.close()
 
-    if not models_and_scalers:
-        print(f"No valid models (with scalers) found in subdirectories of {MODELS_DIR}")
-        return
-    
-    test_files = []
-    if not os.path.exists(TEST_AUDIO_DIR): 
-        print(f"Test audio directory not found: {TEST_AUDIO_DIR}")
-        return
-    
-    print(f"\nLoading test audio files from: {TEST_AUDIO_DIR}")
-    for item_name in os.listdir(TEST_AUDIO_DIR):
-        item_path = os.path.join(TEST_AUDIO_DIR, item_name)
-        if os.path.isfile(item_path) and item_name.lower().endswith((".wav", ".mp3")):
-            test_files.append(item_path)
-            
-    if not test_files:
-        print(f"No test audio files (.wav, .mp3) found in {TEST_AUDIO_DIR}")
-        return
-    
-    print(f"Found {len(test_files)} test audio files.")
+    print(f"▶ Completed results for model: {m}")
 
-    true_labels_for_test_files = {}
-    for f_path in test_files:
-        f_name = os.path.basename(f_path)
-        if "real" in f_name.lower(): 
-            true_labels_for_test_files[f_name] = 1 
-        elif "fake" in f_name.lower():
-            true_labels_for_test_files[f_name] = 0 
-
-    all_model_predictions = {}
-    for model_name, bundle in models_and_scalers.items():
-        model_instance = bundle["model"]
-        scaler_instance = bundle["scaler"]
-        predictions_df = test_model(model_name, model_instance, scaler_instance, test_files, true_labels_dict=true_labels_for_test_files)
-        if predictions_df is not None:
-            all_model_predictions[model_name] = predictions_df
-    
-    if all_model_predictions:
-        first_model_name = list(all_model_predictions.keys())[0]
-        summary_df = all_model_predictions[first_model_name][['file']].copy()
-        for model_name, predictions_df in all_model_predictions.items():
-            temp_df = predictions_df[['file', 'prediction_label', 'confidence_percent']].rename(
-                columns={
-                    'prediction_label': f'{model_name}_pred_label',
-                    'confidence_percent': f'{model_name}_confidence'
-                }
-            )
-            summary_df = pd.merge(summary_df, temp_df, on='file', how='left')
-        
-        summary_df_path = os.path.join(OUTPUT_DIR, "all_models_test_predictions_summary.csv")
-        summary_df.to_csv(summary_df_path, index=False)
-        print(f"\nOverall test predictions summary saved to: {summary_df_path}")
-
-    print(f"\n✅ Testing complete. All results saved in: {OUTPUT_DIR}")
-
-if __name__ == "__main__":
-    main()
+print("✅ Testing complete. All results in:", OUTPUT_DIR)

@@ -11,6 +11,10 @@ code/assets/audio/results/
 results_second_testing/
 code/assets/samples/
 
+# OpenL3 embeddings
+openl3_embeddings/
+**/openl3_embeddings/
+
 # Model training results
 code/models_testing/step_4_fine-tuning/results/
 
