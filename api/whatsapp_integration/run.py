@@ -28,16 +28,16 @@ def main():
         print("1. Create .env file in project root")
         print("2. Add: TWILIO_ACCOUNT_SID=your_sid_here")
         print("3. Add: TWILIO_AUTH_TOKEN=your_token_here")
-        print("4. Add: WEBHOOK_URL=http://localhost:8001")
+        print("4. Add: WEBHOOK_URL=http://localhost:8002")
         print("\n🔧 See SETUP_WHATSAPP.md for detailed instructions")
         print("\n❌ Cannot start without proper configuration.")
         return False
 
     print("✅ Twilio credentials configured!")
 
-    print("\n🌐 Server will start on: http://localhost:8001")
-    print("🔗 Webhook endpoint: http://localhost:8001/whatsapp")
-    print("📊 Health check: http://localhost:8001/health")
+    print("\n🌐 Server will start on: http://localhost:8002")
+    print("🔗 Webhook endpoint: http://localhost:8002/whatsapp")
+    print("📊 Health check: http://localhost:8002/health")
     print("\n🎯 Features:")
     print("  • Text message echo with help")
     print("  • Real audio download from Twilio")
@@ -48,12 +48,12 @@ def main():
     print("  • Make sure VoiceShield API is running on http://localhost:8000")
     print("  • Start the main API first: uvicorn app.main:app --host 0.0.0.0 --port 8000")
     print("  • Then start this webhook service")
-    print("  • Use ngrok to expose webhook: ngrok http 8001")
+    print("  • Use ngrok to expose webhook: ngrok http 8002")
     print("\n🚀 Starting server...")
 
     try:
         # Run the webhook server
-        uvicorn.run(app, host="0.0.0.0", port=8001, log_level="info")
+        uvicorn.run(app, host="0.0.0.0", port=8002, log_level="info")
         return True
     except KeyboardInterrupt:
         print("\n\n🛑 Server stopped by user")

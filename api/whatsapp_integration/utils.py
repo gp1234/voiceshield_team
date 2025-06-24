@@ -9,6 +9,9 @@ import time
 from typing import Optional, Tuple
 from .config import config
 
+# Configuration
+ANALYSIS_API_URL = "http://localhost:8001/analyze_audio/"
+
 
 def download_audio_from_twilio(media_url: str, auth: Tuple[str, str]) -> Optional[str]:
     """
@@ -53,76 +56,130 @@ def download_audio_from_twilio(media_url: str, auth: Tuple[str, str]) -> Optiona
         return None
 
 
-def send_audio_to_api(audio_file_path: str, api_url: str = "http://localhost:8000/analyze_audio/") -> Optional[dict]:
+def send_audio_to_analysis_api(audio_file_path):
     """
-    Send audio file to VoiceShield analysis API
-
-    Args:
-        audio_file_path: Path to audio file
-        api_url: URL of VoiceShield analysis API endpoint
-
-    Returns:
-        API response dict or None if failed
+    Send the audio file to the analysis API and return the response.
     """
+    print(f"[WEBHOOK] INFO: === Sending audio to analysis API ===")
+    print(f"[WEBHOOK] INFO: Audio file path: {audio_file_path}")
+
     try:
-        print(f"[UTILS] INFO: Sending audio to VoiceShield API: {api_url}")
+        # Check if file exists and get size
+        if not os.path.exists(audio_file_path):
+            print(
+                f"[WEBHOOK] ERROR: Audio file does not exist: {audio_file_path}")
+            return {"error": "Audio file not found"}
+
+        file_size = os.path.getsize(audio_file_path)
+        print(f"[WEBHOOK] INFO: Audio file size: {file_size} bytes")
 
         with open(audio_file_path, 'rb') as audio_file:
+            print(f"[WEBHOOK] INFO: Opening file for reading...")
+
+            # Prepare the files dictionary for requests
             files = {'file': (os.path.basename(
                 audio_file_path), audio_file, 'audio/ogg')}
+            print(f"[WEBHOOK] INFO: Prepared files dict with key 'file'")
+            print(
+                f"[WEBHOOK] INFO: File name: {os.path.basename(audio_file_path)}")
+            print(f"[WEBHOOK] INFO: Content type: audio/ogg")
+            print(f"[WEBHOOK] INFO: Target URL: {ANALYSIS_API_URL}")
 
-            response = requests.post(api_url, files=files, timeout=60)
-            response.raise_for_status()
+            print(f"[WEBHOOK] INFO: Making POST request...")
+            response = requests.post(ANALYSIS_API_URL, files=files, timeout=60)
 
-            result = response.json()
-            print(f"[UTILS] INFO: VoiceShield API response received: {result}")
+            print(f"[WEBHOOK] INFO: Response received!")
+            print(f"[WEBHOOK] INFO: Status code: {response.status_code}")
+            print(
+                f"[WEBHOOK] INFO: Response headers: {dict(response.headers)}")
 
-            return result
+            if response.status_code == 200:
+                result = response.json()
+                print(f"[WEBHOOK] INFO: Response JSON parsed successfully")
+                print(
+                    f"[WEBHOOK] INFO: Response keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+                return result
+            else:
+                print(f"[WEBHOOK] ERROR: API returned non-200 status")
+                print(f"[WEBHOOK] ERROR: Response text: {response.text}")
+                return {"error": f"API error: {response.status_code} - {response.text}"}
 
+    except requests.exceptions.Timeout:
+        print(f"[WEBHOOK] ERROR: Request timeout")
+        return {"error": "Request timeout"}
     except requests.exceptions.RequestException as e:
-        print(f"[UTILS] ERROR: Failed to send audio to VoiceShield API: {e}")
-        return None
+        print(f"[WEBHOOK] ERROR: Request exception: {e}")
+        return {"error": f"Request failed: {str(e)}"}
     except Exception as e:
-        print(f"[UTILS] ERROR: Unexpected error sending audio to API: {e}")
-        return None
+        print(f"[WEBHOOK] ERROR: Unexpected exception: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"error": f"Unexpected error: {str(e)}"}
 
 
 def format_analysis_response(api_response: dict) -> str:
     """
-    Format VoiceShield API response into user-friendly WhatsApp message
-
-    Args:
-        api_response: Response from VoiceShield analysis API
-
-    Returns:
-        Formatted message string in English
+    Format VoiceShield API response into user-friendly WhatsApp message.
+    Handles both simple (old) and orchestrated (new) API responses.
     """
     try:
-        prediction = api_response.get('prediction', 'UNKNOWN')
-        confidence = api_response.get('confidence', 0)
-        filename = api_response.get('filename', 'audio')
+        # Check for new orchestrated response format
+        if 'final_prediction' in api_response:
+            final_prediction = api_response.get('final_prediction')
+            summary = api_response.get('analysis_summary', {})
+            total_chunks = summary.get('total_chunks', 0)
 
-        # Choose emoji based on prediction
-        if prediction == 'REAL':
-            emoji = "✅"
-            status_msg = "REAL"
-        elif prediction == 'FAKE':
-            emoji = "⚠️"
-            status_msg = "FAKE"
+            if final_prediction == 'REAL':
+                emoji = "✅"
+                status_msg = "Result: REAL"
+                details = f"Analyzed {total_chunks} segments of the audio, all appear to be authentic."
+            elif final_prediction == 'FAKE':
+                emoji = "⚠️"
+                status_msg = "Result: FAKE"
+                details = f"Analyzed {total_chunks} segments of the audio, all appear to be AI-generated."
+            elif final_prediction == 'MIXED':
+                emoji = "🚨"
+                status_msg = "Result: MIXED"
+                fake_segments_list = api_response.get(
+                    'suspicious_segments', [])
+                segments_str = ", ".join(
+                    [f"{s['start']:.1f}s-{s['end']:.1f}s" for s in fake_segments_list])
+                details = f"Suspicious segments detected at: {segments_str}"
+            else:
+                emoji = "❓"
+                status_msg = "Result: UNKNOWN"
+                details = "Could not determine the nature of the audio."
+
+            message = f"""🎤 *Audio Analysis Complete*
+
+{emoji} *{status_msg}*
+{details}
+
+_Analysis powered by VoiceShield AI_"""
+
+        # Fallback to old, simple response format
         else:
-            emoji = "❓"
-            status_msg = "UNKNOWN"
+            prediction = api_response.get('prediction', 'UNKNOWN')
+            confidence = api_response.get('confidence', 0)
 
-        # Format confidence
-        if confidence >= 0:
-            confidence_text = f"Confidence: {confidence:.1f}%"
-        else:
-            confidence_text = "Confidence: N/A"
+            if prediction == 'REAL':
+                emoji = "✅"
+                status_msg = "Result: REAL"
+            elif prediction == 'FAKE':
+                emoji = "⚠️"
+                status_msg = "Result: FAKE"
+            else:
+                emoji = "❓"
+                status_msg = "Result: UNKNOWN"
 
-        # Create formatted message in English
-        message = f"""🎤 *Audio Analysis Complete*
+            if confidence >= 0:
+                confidence_text = f"Confidence: {confidence:.1f}%"
+            else:
+                confidence_text = "Confidence: N/A"
 
-{emoji} *Result: {status_msg}*
+            message = f"""🎤 *Audio Analysis Complete*
+
+{emoji} *{status_msg}*
 📊 {confidence_text}
 
 _Analysis powered by VoiceShield AI_"""

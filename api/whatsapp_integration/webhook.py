@@ -9,7 +9,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from .config import config
 from .utils import (
     download_audio_from_twilio,
-    send_audio_to_api,
+    send_audio_to_analysis_api,
     format_analysis_response,
     cleanup_temp_file,
     get_error_message,
@@ -96,7 +96,7 @@ async def whatsapp_webhook(
 
         # Step 2: Send audio to VoiceShield analysis API
         print(f"{log_prefix} INFO: Step 2 - Sending audio to VoiceShield API")
-        api_response = send_audio_to_api(temp_audio_path)
+        api_response = send_audio_to_analysis_api(temp_audio_path)
 
         if not api_response:
             error_msg = get_error_message("api")
