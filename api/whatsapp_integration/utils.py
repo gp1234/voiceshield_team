@@ -15,7 +15,7 @@ ANALYSIS_API_URL = "http://localhost:8001/analyze_audio/"
 
 def download_audio_from_twilio(media_url: str, auth: Tuple[str, str]) -> Optional[str]:
     """
-    Download audio file from Twilio media URL
+    Download media file (audio or video) from Twilio media URL
 
     Args:
         media_url: Twilio media URL
@@ -25,34 +25,51 @@ def download_audio_from_twilio(media_url: str, auth: Tuple[str, str]) -> Optiona
         Path to downloaded temporary file or None if failed
     """
     try:
-        print(f"[UTILS] INFO: Downloading audio from: {media_url}")
+        print(f"[UTILS] INFO: Downloading media from: {media_url}")
 
         # Make authenticated request to Twilio
         response = requests.get(media_url, auth=auth, timeout=30)
         response.raise_for_status()
 
+        # Determine file extension based on content type
+        content_type = response.headers.get('content-type', '').lower()
+        if 'video' in content_type:
+            if 'mp4' in content_type:
+                suffix = '.mp4'
+            elif '3gpp' in content_type:
+                suffix = '.3gp'
+            else:
+                suffix = '.mp4'  # Default for videos
+            prefix = f'whatsapp_video_{int(time.time())}_'
+        else:
+            # Default to audio handling
+            suffix = '.ogg'  # WhatsApp typically sends OGG files for audio
+            prefix = f'whatsapp_audio_{int(time.time())}_'
+
         # Create temporary file
         temp_file = tempfile.NamedTemporaryFile(
             delete=False,
-            suffix='.ogg',  # WhatsApp typically sends OGG files
-            prefix=f'whatsapp_audio_{int(time.time())}_'
+            suffix=suffix,
+            prefix=prefix
         )
 
-        # Write audio content
+        # Write media content
         temp_file.write(response.content)
         temp_file.close()
 
         file_size = len(response.content)
         print(
-            f"[UTILS] INFO: Audio downloaded successfully. Size: {file_size} bytes, Path: {temp_file.name}")
+            f"[UTILS] INFO: Media downloaded successfully. Size: {file_size} bytes, Path: {temp_file.name}")
+        print(
+            f"[UTILS] INFO: Content type: {content_type}, File extension: {suffix}")
 
         return temp_file.name
 
     except requests.exceptions.RequestException as e:
-        print(f"[UTILS] ERROR: Failed to download audio from Twilio: {e}")
+        print(f"[UTILS] ERROR: Failed to download media from Twilio: {e}")
         return None
     except Exception as e:
-        print(f"[UTILS] ERROR: Unexpected error downloading audio: {e}")
+        print(f"[UTILS] ERROR: Unexpected error downloading media: {e}")
         return None
 
 
@@ -237,12 +254,14 @@ def get_help_message() -> str:
     return """🤖 *VoiceShield - AI Voice Detector*
 
 📝 *How to use:*
-• Send an audio message (voice note)
+• Send an audio message (voice note) 🎤
+• Send a video message 🎥
 • Wait a few seconds
 • Receive analysis: REAL or FAKE
 
 ⚡ *Features:*
 • AI-generated voice detection
+• Video audio extraction
 • Machine Learning based analysis
 • Fast and automatic response
 

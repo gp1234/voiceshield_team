@@ -72,11 +72,23 @@ async def whatsapp_webhook(
 
         return create_twiml_response(str(resp))
 
-    # Handle audio messages - Real AI Analysis
-    print(f"{log_prefix} INFO: Audio message detected - starting AI analysis")
+    # Handle media messages (audio/video) - Real AI Analysis
+    from .video_processor import detect_media_type
 
-    # Send immediate acknowledgment
-    resp.message("🎤 Audio received! Analyzing with AI... ⏳")
+    media_type = detect_media_type(MediaContentType0, MediaUrl0)
+    print(f"{log_prefix} INFO: Media message detected - Type: {media_type}")
+
+    if media_type == 'video':
+        print(
+            f"{log_prefix} INFO: Video message detected - extracting audio for analysis")
+        resp.message(
+            "🎥 Video received! Extracting audio and analyzing with AI... ⏳")
+    elif media_type == 'audio':
+        print(f"{log_prefix} INFO: Audio message detected - starting AI analysis")
+        resp.message("🎤 Audio received! Analyzing with AI... ⏳")
+    else:
+        print(f"{log_prefix} INFO: Unknown media type detected - attempting analysis")
+        resp.message("📁 Media received! Analyzing with AI... ⏳")
 
     temp_audio_path = None
 

@@ -6,6 +6,9 @@ import requests
 from pydub import AudioSegment
 import io
 import math
+import tempfile
+import os
+from .whatsapp_integration.video_processor import detect_media_type, extract_audio_from_video, cleanup_temp_file
 
 # Configuration for the main analysis API
 ANALYSIS_API_URL = "http://localhost:8000/analyze_audio/"
@@ -44,9 +47,9 @@ def analyze_chunk_sync(audio_chunk: AudioSegment, start_time: float):
 @app.post("/analyze_audio/")
 async def analyze_audio_endpoint(file: UploadFile = File(...)):
     """
-    Orchestrator endpoint. Forwards short audio to the main API directly.
-    For long audio, it splits it into chunks, analyzes them in parallel,
-    and aggregates the results.
+    Orchestrator endpoint. Supports both audio and video files.
+    For videos, extracts audio first. For long audio, splits into chunks 
+    and analyzes them in parallel, then aggregates results.
     """
 
     print(f"[ORCHESTRATOR] INFO: === New Request Received ===")
@@ -55,23 +58,70 @@ async def analyze_audio_endpoint(file: UploadFile = File(...)):
     print(
         f"[ORCHESTRATOR] INFO: File size (if available): {getattr(file, 'size', 'Unknown')}")
 
+    # Detect media type
+    media_type = detect_media_type(file.content_type or "", file.filename)
+    print(f"[ORCHESTRATOR] INFO: Detected media type: {media_type}")
+
+    temp_video_path = None
+    temp_audio_path = None
+    audio = None
+
     try:
         print(f"[ORCHESTRATOR] INFO: Attempting to read file content...")
         contents = await file.read()
         print(
             f"[ORCHESTRATOR] INFO: File content read successfully. Size: {len(contents)} bytes")
 
-        print(f"[ORCHESTRATOR] INFO: Attempting to load audio with pydub...")
-        audio = AudioSegment.from_file(io.BytesIO(contents))
-        print(
-            f"[ORCHESTRATOR] INFO: Audio loaded successfully. Duration: {audio.duration_seconds:.2f}s")
+        if media_type == 'video':
+            print(f"[ORCHESTRATOR] INFO: Processing VIDEO file - extracting audio...")
 
+            # Save video to temporary file
+            temp_video_file = tempfile.NamedTemporaryFile(
+                delete=False, suffix='.mp4')
+            temp_video_file.write(contents)
+            temp_video_file.close()
+            temp_video_path = temp_video_file.name
+
+            print(
+                f"[ORCHESTRATOR] INFO: Video saved to temporary file: {temp_video_path}")
+
+            # Extract audio from video
+            temp_audio_path = extract_audio_from_video(temp_video_path)
+            if not temp_audio_path:
+                raise HTTPException(
+                    status_code=400, detail="Could not extract audio from video file")
+
+            print(
+                f"[ORCHESTRATOR] INFO: Audio extracted successfully: {temp_audio_path}")
+
+            # Load extracted audio
+            audio = AudioSegment.from_file(temp_audio_path)
+            print(
+                f"[ORCHESTRATOR] INFO: Extracted audio loaded. Duration: {audio.duration_seconds:.2f}s")
+
+            # Update contents to use extracted audio for API forwarding
+            with open(temp_audio_path, 'rb') as audio_file:
+                contents = audio_file.read()
+
+        else:
+            print(f"[ORCHESTRATOR] INFO: Processing AUDIO file directly...")
+            print(f"[ORCHESTRATOR] INFO: Attempting to load audio with pydub...")
+            audio = AudioSegment.from_file(io.BytesIO(contents))
+            print(
+                f"[ORCHESTRATOR] INFO: Audio loaded successfully. Duration: {audio.duration_seconds:.2f}s")
+
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[ORCHESTRATOR] ERROR: Exception during file processing: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
-            status_code=400, detail=f"Could not read or process audio file: {str(e)}")
+            status_code=400, detail=f"Could not read or process media file: {str(e)}")
+    finally:
+        # Cleanup temporary video file immediately
+        if temp_video_path:
+            cleanup_temp_file(temp_video_path)
 
     print(
         f"[ORCHESTRATOR] INFO: Audio duration: {audio.duration_seconds:.2f}s, threshold: {LONG_AUDIO_THRESHOLD_S}s")
@@ -180,9 +230,14 @@ async def analyze_audio_endpoint(file: UploadFile = File(...)):
     }
 
     print(f"[ORCHESTRATOR] INFO: === Request completed successfully ===")
+
+    # Cleanup extracted audio file if it was created
+    if temp_audio_path:
+        cleanup_temp_file(temp_audio_path)
+
     return JSONResponse(content=response_data)
 
 
 @app.get("/health")
 def health_check():
-    return {"status": "Orchestrator is running"}
+    return {"status": "Orchestrator is running - supports audio and video processing"}
