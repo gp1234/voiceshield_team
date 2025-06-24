@@ -1,0 +1,8 @@
+torch
+transformers
+pandas
+scipy
+numpy<2
+sentencepiece
+torchaudio
+bark

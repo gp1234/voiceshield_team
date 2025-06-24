@@ -266,7 +266,7 @@
     </div>
 
     <script>
-      const API_URL = "/analyze_audio/";
+      const API_URL = "/analyze_audio_wav2/";
 
       const uploadView = document.getElementById("uploadView");
       const analyzingView = document.getElementById("analyzingView");
@@ -381,13 +381,23 @@
             };
 
             mediaRecorder.onstop = () => {
-              const audioBlob = new Blob(audioChunks, { type: "audio/wav" }); // Specify WAV, or let backend handle conversion
-              // Create a filename for the recorded audio
+              // Determine the actual mime type that was recorded
+              const mimeType = mediaRecorder.mimeType || "audio/webm";
+              const audioBlob = new Blob(audioChunks, { type: mimeType });
+
+              // Create a filename for the recorded audio with proper extension
               const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+              let extension = "webm";
+              if (mimeType.includes("wav")) {
+                extension = "wav";
+              } else if (mimeType.includes("mp4")) {
+                extension = "m4a";
+              }
+
               const recordedFile = new File(
                 [audioBlob],
-                `recording-${timestamp}.wav`,
-                { type: "audio/wav" }
+                `recording-${timestamp}.${extension}`,
+                { type: mimeType }
               );
               audioChunks = []; // Reset chunks
               processFile(recordedFile); // Process the recorded file

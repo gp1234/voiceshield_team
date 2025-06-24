@@ -1,0 +1,16 @@
+fastapi==0.110.1
+uvicorn==0.29.0
+
+torch==2.1.2
+torchaudio==2.1.2
+transformers==4.36.2
+datasets==2.18.0
+librosa==0.10.1
+soundfile==0.12.1
+
+scikit-learn==1.4.2
+pandas==2.1.4
+tqdm==4.66.1
+matplotlib==3.7.5
+seaborn==0.12.2
+librosa==0.10.1

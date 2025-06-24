@@ -1,5 +1,6 @@
 # Audio data directories
 assets/audio/processed_audio/
+code/assets/audio/
 code/assets/audio/augmented_audio/
 code/assets/audio/processed_audio/
 code/assets/audio/augmented_audio/
@@ -10,11 +11,19 @@ code/assets/audio/results/
 results_second_testing/
 code/assets/samples/
 
+# OpenL3 embeddings
+openl3_embeddings/
+**/openl3_embeddings/
+
 # Model training results
 code/models_testing/step_4_fine-tuning/results/
 
 # Model training results
 code/models_testing/step_4_fine-tuning/results/
+
+# Model checkpoints
+checkpoint-*
+**/checkpoint-*
 
 # Python
 __pycache__/

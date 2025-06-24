@@ -1,0 +1,21 @@
+name: ms_env
+channels:
+  - pytorch
+  - conda-forge
+  - apple
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch=2.3.0
+  - torchaudio=2.3.0
+  - transformers=4.41.0
+  - pandas=2.2.2
+  - scipy=1.13.0
+  - numpy<2
+  - sentencepiece=0.2.0
+  - datasets=2.20.0
+  - pip
+  - pip:
+      - timeout-decorator==0.5.0
+  - ffmpeg
+  - libsndfile
