@@ -64,7 +64,7 @@ async def whatsapp_webhook(
             print(f"{log_prefix} INFO: Help message sent")
         else:
             # Echo message with instructions
-            response_text = f"""📱 Message received: "{Body}"
+            response_text = f"""📱 Hello! I'm VoiceShield, your AI voice detector.
 
 {get_help_message()}"""
             resp.message(response_text)
