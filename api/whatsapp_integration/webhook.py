@@ -13,7 +13,8 @@ from .utils import (
     format_analysis_response,
     cleanup_temp_file,
     get_error_message,
-    get_help_message
+    get_help_message,
+    send_whatsapp_message
 )
 
 app = FastAPI(title="VoiceShield WhatsApp Integration")
@@ -28,8 +29,8 @@ async def whatsapp_webhook(
     MediaContentType0: str = Form(default="")
 ):
     """
-    Main WhatsApp webhook that processes both text and audio messages
-    Provides real AI voice analysis for audio messages
+    Main WhatsApp webhook that processes both text and audio messages.
+    The orchestrator now handles the initial confirmation message.
     """
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
     log_prefix = f"[WHATSAPP_WEBHOOK - {timestamp}]"
@@ -41,7 +42,7 @@ async def whatsapp_webhook(
     print(f"{log_prefix} INFO: MediaUrl0: {MediaUrl0}")
     print(f"{log_prefix} INFO: MediaContentType0: {MediaContentType0}")
 
-    # Create TwiML response
+    # Create TwiML response object, which will be returned empty to Twilio
     resp = MessagingResponse()
 
     # Check if Twilio is configured
@@ -78,52 +79,50 @@ async def whatsapp_webhook(
     media_type = detect_media_type(MediaContentType0, MediaUrl0)
     print(f"{log_prefix} INFO: Media message detected - Type: {media_type}")
 
-    if media_type == 'video':
-        print(
-            f"{log_prefix} INFO: Video message detected - extracting audio for analysis")
-        resp.message(
-            "🎥 Video received! Extracting audio and analyzing with AI... ⏳")
-    elif media_type == 'audio':
-        print(f"{log_prefix} INFO: Audio message detected - starting AI analysis")
-        resp.message("🎤 Audio received! Analyzing with AI... ⏳")
-    else:
-        print(f"{log_prefix} INFO: Unknown media type detected - attempting analysis")
-        resp.message("📁 Media received! Analyzing with AI... ⏳")
-
+    # The initial confirmation message is now sent by the orchestrator.
+    # This webhook will only send the final result.
     temp_audio_path = None
 
     try:
-        # Step 1: Download audio from Twilio
-        print(f"{log_prefix} INFO: Step 1 - Downloading audio from Twilio")
+        # Step 1: Download media from Twilio
+        print(f"{log_prefix} INFO: Step 1 - Downloading media from Twilio")
         auth = (config.account_sid, config.auth_token)
         temp_audio_path = download_audio_from_twilio(MediaUrl0, auth)
 
         if not temp_audio_path:
+            # If download fails, we send an error message back to the user
             error_msg = get_error_message("download")
-            print(f"{log_prefix} ERROR: Failed to download audio")
-            resp.message(error_msg)
+            print(f"{log_prefix} ERROR: Failed to download media")
+            send_whatsapp_message(to_number=From, message_body=error_msg)
             return create_twiml_response(str(resp))
 
-        print(f"{log_prefix} INFO: Audio downloaded successfully: {temp_audio_path}")
+        print(f"{log_prefix} INFO: Media downloaded successfully: {temp_audio_path}")
 
-        # Step 2: Send audio to VoiceShield analysis API
-        print(f"{log_prefix} INFO: Step 2 - Sending audio to VoiceShield API")
-        api_response = send_audio_to_analysis_api(temp_audio_path)
+        # Step 2: Send media to VoiceShield analysis API (Orchestrator handles video/audio)
+        print(f"{log_prefix} INFO: Step 2 - Sending media to VoiceShield API")
+        api_response = send_audio_to_analysis_api(
+            audio_file_path=temp_audio_path,
+            user_number=From,
+            media_type=media_type
+        )
 
-        if not api_response:
+        if not api_response or 'error' in api_response:
             error_msg = get_error_message("api")
-            print(f"{log_prefix} ERROR: Failed to get API response")
-            resp.message(error_msg)
+            print(
+                f"{log_prefix} ERROR: Failed to get API response. Details: {api_response.get('error', 'N/A')}")
+            send_whatsapp_message(to_number=From, message_body=error_msg)
             return create_twiml_response(str(resp))
 
         print(f"{log_prefix} INFO: VoiceShield AI analysis completed successfully")
 
-        # Step 3: Format and send response
+        # Step 3: Format and send response with enhanced message for video
         print(f"{log_prefix} INFO: Step 3 - Formatting response")
-        formatted_response = format_analysis_response(api_response)
-        resp.message(formatted_response)
+        formatted_response = format_analysis_response(api_response, media_type)
 
-        print(f"{log_prefix} INFO: Analysis complete - response sent to user")
+        # Send result via Twilio API
+        send_whatsapp_message(to_number=From, message_body=formatted_response)
+
+        print(f"{log_prefix} INFO: Analysis complete - result sent via Twilio API")
 
     except Exception as e:
         print(f"{log_prefix} ERROR: Unexpected error during audio processing: {e}")
@@ -131,7 +130,7 @@ async def whatsapp_webhook(
         traceback.print_exc()
 
         error_msg = get_error_message("processing")
-        resp.message(error_msg)
+        send_whatsapp_message(to_number=From, message_body=error_msg)
 
     finally:
         # Always cleanup temporary files
@@ -140,6 +139,8 @@ async def whatsapp_webhook(
 
         print(f"{log_prefix} INFO: === Request completed ===\n")
 
+    # Return an empty TwiML response to prevent sending a duplicate message.
+    # All user-facing messages are now sent via the Twilio REST API.
     return create_twiml_response(str(resp))
 
 

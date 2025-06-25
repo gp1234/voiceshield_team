@@ -1,5 +1,155 @@
 # VoiceShield WhatsApp Integration
 
+This module integrates VoiceShield AI with WhatsApp through Twilio's API, providing real-time voice authenticity analysis for both audio and video messages.
+
+## 🎯 Features
+
+- **Audio Analysis**: Direct analysis of voice messages
+- **Video Support**: Automatic audio extraction from video files  
+- **Dual-Message System**: Immediate confirmation + detailed results
+- **Smart Segmentation**: Handles long audio files efficiently
+- **Real-time Processing**: Fast analysis with user feedback
+- **Error Handling**: Comprehensive error management and user guidance
+
+## 📱 User Experience
+
+### Audio Messages
+1. **Immediate Response**: "🎤 Audio received! Analyzing with AI... ⏳"
+2. **Background Processing**: Audio analysis with VoiceShield AI
+3. **Result Delivery**: "🎤 *Audio Analysis Complete* ✅ *Result: REAL*"
+
+### Video Messages  
+1. **Immediate Response**: "🎥 Video received! Extracting audio and analyzing... This may take a few moments ⏳"
+2. **Background Processing**: Audio extraction + VoiceShield analysis
+3. **Result Delivery**: "🎥 *Video Audio Analysis Complete* ✅ *Result: REAL*"
+
+## 🔧 Technical Implementation
+
+### Dual-Message Architecture
+```python
+# Orchestrator sends immediate confirmation via Twilio API
+send_whatsapp_message(to_number=user_number, message_body=confirmation_msg)
+
+# Webhook returns empty TwiML response
+resp = MessagingResponse()  # Empty response
+
+# Final result delivery also via Twilio API
+send_whatsapp_message(to_number=user_number, message_body=analysis_result)
+```
+
+### Video Processing Pipeline
+```
+Video File → Audio Extraction (FFmpeg) → VoiceShield Analysis → Result
+```
+
+### Supported Formats
+- **Audio**: MP3, WAV, M4A, OGG, FLAC
+- **Video**: MP4, 3GP, MOV, AVI (audio extracted automatically)
+
+## 🚀 Quick Start
+
+1. **Environment Setup**:
+```bash
+export TWILIO_ACCOUNT_SID="your_account_sid"
+export TWILIO_AUTH_TOKEN="your_auth_token"
+export WEBHOOK_URL="https://your-domain.com"
+```
+
+2. **Install Dependencies**:
+```bash
+pip install fastapi twilio pydub requests
+```
+
+3. **Run Server**:
+```bash
+python run.py
+```
+
+4. **Configure Webhook**: Set Twilio webhook URL to `https://your-domain.com/whatsapp`
+
+## 📊 Processing Flow
+
+```mermaid
+graph TD
+    A[User sends media] --> B[Detect media type]
+    B --> C[Send immediate confirmation]
+    C --> D[Download from Twilio]
+    D --> E{Video or Audio?}
+    E -->|Video| F[Extract audio with FFmpeg]
+    E -->|Audio| G[Direct processing]
+    F --> G
+    G --> H[Send to VoiceShield API]
+    H --> I[Format response]
+    I --> J[Send result via Twilio API]
+```
+
+## 🛡️ Error Handling
+
+- **Invalid files**: Clear error messages with supported formats
+- **Processing failures**: Automatic cleanup and user notification  
+- **API timeouts**: Graceful degradation with helpful guidance
+- **Missing credentials**: Configuration validation and setup help
+
+## 🔍 Testing
+
+Run the test suite to verify functionality:
+```bash
+python test_video_processing.py  # Video processing tests
+python test_messages.py         # Message formatting tests
+```
+
+## 📋 API Endpoints
+
+- `POST /whatsapp` - Main webhook endpoint for Twilio
+- `GET /health` - Health check endpoint
+
+## 🔄 Message Flow Examples
+
+### Successful Analysis
+```
+User: [sends video]
+Bot: 🎥 Video received! Extracting audio and analyzing... This may take a few moments ⏳
+Bot: 🎥 *Video Audio Analysis Complete*
+     ✅ *Result: REAL*
+     Analyzed 3 segments of the audio, all appear to be authentic.
+     _Analysis powered by VoiceShield AI_
+```
+
+### Error Handling
+```
+User: [sends unsupported file]
+Bot: ❌ Unsupported file format. Please send:
+     🎤 Audio: MP3, WAV, M4A, OGG, FLAC
+     🎥 Video: MP4, 3GP, MOV, AVI
+     
+     Send "help" for more information.
+```
+
+## 🔧 Configuration
+
+All configuration is handled through environment variables:
+- `TWILIO_ACCOUNT_SID`: Your Twilio Account SID
+- `TWILIO_AUTH_TOKEN`: Your Twilio Auth Token  
+- `WEBHOOK_URL`: Your webhook base URL
+- `VOICESHIELD_API_URL`: VoiceShield API endpoint (optional)
+
+## 🚨 Important Notes
+
+- **Dual Messages**: Users receive confirmation immediately, then results separately
+- **Video Processing**: Takes longer due to audio extraction step
+- **File Cleanup**: Temporary files are automatically cleaned up
+- **Security**: All credentials should be properly secured
+- **Rate Limits**: Respect Twilio and VoiceShield API rate limits
+
+## 🆘 Troubleshooting
+
+1. **No confirmation message**: Check Twilio webhook configuration
+2. **No result message**: Verify Twilio API credentials and rate limits
+3. **Video processing fails**: Ensure FFmpeg is installed and accessible
+4. **API errors**: Check VoiceShield API endpoint and authentication
+
+For more details, check the logs or contact support.
+
 ## Overview
 
 VoiceShield WhatsApp Integration allows users to send voice messages and video files through WhatsApp and receive real-time AI analysis to determine if the audio is **REAL** or **FAKE** (AI-generated). The system now supports **video audio extraction** and **long audio analysis** with intelligent segmentation for enhanced accuracy.

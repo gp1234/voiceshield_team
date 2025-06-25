@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse
 import httpx
 import asyncio
@@ -9,6 +9,7 @@ import math
 import tempfile
 import os
 from .whatsapp_integration.video_processor import detect_media_type, extract_audio_from_video, cleanup_temp_file
+from .whatsapp_integration.utils import send_whatsapp_message
 
 # Configuration for the main analysis API
 ANALYSIS_API_URL = "http://localhost:8000/analyze_audio/"
@@ -45,12 +46,24 @@ def analyze_chunk_sync(audio_chunk: AudioSegment, start_time: float):
 
 
 @app.post("/analyze_audio/")
-async def analyze_audio_endpoint(file: UploadFile = File(...)):
+async def analyze_audio_endpoint(
+    file: UploadFile = File(...),
+    user_number: str = Form(...),
+    media_type: str = Form(...)
+):
     """
-    Orchestrator endpoint. Supports both audio and video files.
-    For videos, extracts audio first. For long audio, splits into chunks 
-    and analyzes them in parallel, then aggregates results.
+    Orchestrator endpoint. Sends a confirmation message, supports both audio 
+    and video files. For videos, extracts audio first. For long audio, splits 
+    into chunks and analyzes them in parallel, then aggregates results.
     """
+    # Step 1: Send immediate confirmation message
+    print(
+        f"[ORCHESTRATOR] INFO: Received request for {media_type} from {user_number}")
+    if media_type == 'video':
+        confirmation_msg = "🎥 Video received! Extracting audio and analyzing... This may take a few moments ⏳"
+    else:
+        confirmation_msg = "🎤 Audio received! Analyzing with AI... ⏳"
+    send_whatsapp_message(to_number=user_number, message_body=confirmation_msg)
 
     print(f"[ORCHESTRATOR] INFO: === New Request Received ===")
     print(f"[ORCHESTRATOR] INFO: File name: {file.filename}")
@@ -58,9 +71,11 @@ async def analyze_audio_endpoint(file: UploadFile = File(...)):
     print(
         f"[ORCHESTRATOR] INFO: File size (if available): {getattr(file, 'size', 'Unknown')}")
 
-    # Detect media type
-    media_type = detect_media_type(file.content_type or "", file.filename)
-    print(f"[ORCHESTRATOR] INFO: Detected media type: {media_type}")
+    # The original media_type detection is now used for backend logic
+    internal_media_type = detect_media_type(
+        file.content_type or "", file.filename)
+    print(
+        f"[ORCHESTRATOR] INFO: Detected internal media type: {internal_media_type}")
 
     temp_video_path = None
     temp_audio_path = None
@@ -72,7 +87,7 @@ async def analyze_audio_endpoint(file: UploadFile = File(...)):
         print(
             f"[ORCHESTRATOR] INFO: File content read successfully. Size: {len(contents)} bytes")
 
-        if media_type == 'video':
+        if internal_media_type == 'video':
             print(f"[ORCHESTRATOR] INFO: Processing VIDEO file - extracting audio...")
 
             # Save video to temporary file

@@ -7,10 +7,39 @@ import requests
 import tempfile
 import time
 from typing import Optional, Tuple
+from twilio.rest import Client
 from .config import config
 
 # Configuration
 ANALYSIS_API_URL = "http://localhost:8001/analyze_audio/"
+TWILIO_WHATSAPP_NUMBER = "whatsapp:+14155238886"  # Twilio Sandbox Number
+
+
+def send_whatsapp_message(to_number: str, message_body: str):
+    """
+    Sends a WhatsApp message using the Twilio API.
+
+    Args:
+        to_number: The recipient's WhatsApp number (e.g., 'whatsapp:+15551234567').
+        message_body: The text of the message to send.
+    """
+    if not config.is_configured():
+        print("[UTILS] ERROR: Twilio is not configured. Cannot send message.")
+        return
+
+    try:
+        client = Client(config.account_sid, config.auth_token)
+        print(
+            f"[UTILS] INFO: Sending message to {to_number}: '{message_body[:30]}...'")
+
+        message = client.messages.create(
+            from_=TWILIO_WHATSAPP_NUMBER,
+            body=message_body,
+            to=to_number
+        )
+        print(f"[UTILS] INFO: Message sent successfully. SID: {message.sid}")
+    except Exception as e:
+        print(f"[UTILS] ERROR: Failed to send WhatsApp message: {e}")
 
 
 def download_audio_from_twilio(media_url: str, auth: Tuple[str, str]) -> Optional[str]:
@@ -73,71 +102,77 @@ def download_audio_from_twilio(media_url: str, auth: Tuple[str, str]) -> Optiona
         return None
 
 
-def send_audio_to_analysis_api(audio_file_path):
+def send_audio_to_analysis_api(audio_file_path: str, user_number: str, media_type: str):
     """
-    Send the audio file to the analysis API and return the response.
+    Send the audio file to the analysis API with user and media info.
     """
-    print(f"[WEBHOOK] INFO: === Sending audio to analysis API ===")
-    print(f"[WEBHOOK] INFO: Audio file path: {audio_file_path}")
+    print(f"[UTILS] INFO: === Sending audio to analysis API ===")
+    print(f"[UTILS] INFO: Audio file path: {audio_file_path}")
+    print(
+        f"[UTILS] INFO: User number: {user_number}, Media type: {media_type}")
 
     try:
         # Check if file exists and get size
         if not os.path.exists(audio_file_path):
             print(
-                f"[WEBHOOK] ERROR: Audio file does not exist: {audio_file_path}")
+                f"[UTILS] ERROR: Audio file does not exist: {audio_file_path}")
             return {"error": "Audio file not found"}
 
         file_size = os.path.getsize(audio_file_path)
-        print(f"[WEBHOOK] INFO: Audio file size: {file_size} bytes")
+        print(f"[UTILS] INFO: Audio file size: {file_size} bytes")
 
         with open(audio_file_path, 'rb') as audio_file:
-            print(f"[WEBHOOK] INFO: Opening file for reading...")
+            print(f"[UTILS] INFO: Opening file for reading...")
 
-            # Prepare the files dictionary for requests
+            # Prepare the files and data dictionary for requests
             files = {'file': (os.path.basename(
-                audio_file_path), audio_file, 'audio/ogg')}
-            print(f"[WEBHOOK] INFO: Prepared files dict with key 'file'")
-            print(
-                f"[WEBHOOK] INFO: File name: {os.path.basename(audio_file_path)}")
-            print(f"[WEBHOOK] INFO: Content type: audio/ogg")
-            print(f"[WEBHOOK] INFO: Target URL: {ANALYSIS_API_URL}")
+                audio_file_path), audio_file, 'application/octet-stream')}
+            data = {'user_number': user_number, 'media_type': media_type}
 
-            print(f"[WEBHOOK] INFO: Making POST request...")
-            response = requests.post(ANALYSIS_API_URL, files=files, timeout=60)
+            print(f"[UTILS] INFO: Prepared files and data payload")
+            print(f"[UTILS] INFO: Target URL: {ANALYSIS_API_URL}")
 
-            print(f"[WEBHOOK] INFO: Response received!")
-            print(f"[WEBHOOK] INFO: Status code: {response.status_code}")
+            print(f"[UTILS] INFO: Making POST request...")
+            response = requests.post(
+                ANALYSIS_API_URL, files=files, data=data, timeout=60)
+
+            print(f"[UTILS] INFO: Response received!")
+            print(f"[UTILS] INFO: Status code: {response.status_code}")
             print(
-                f"[WEBHOOK] INFO: Response headers: {dict(response.headers)}")
+                f"[UTILS] INFO: Response headers: {dict(response.headers)}")
 
             if response.status_code == 200:
                 result = response.json()
-                print(f"[WEBHOOK] INFO: Response JSON parsed successfully")
+                print(f"[UTILS] INFO: Response JSON parsed successfully")
                 print(
-                    f"[WEBHOOK] INFO: Response keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+                    f"[UTILS] INFO: Response keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
                 return result
             else:
-                print(f"[WEBHOOK] ERROR: API returned non-200 status")
-                print(f"[WEBHOOK] ERROR: Response text: {response.text}")
+                print(f"[UTILS] ERROR: API returned non-200 status")
+                print(f"[UTILS] ERROR: Response text: {response.text}")
                 return {"error": f"API error: {response.status_code} - {response.text}"}
 
     except requests.exceptions.Timeout:
-        print(f"[WEBHOOK] ERROR: Request timeout")
+        print(f"[UTILS] ERROR: Request timeout")
         return {"error": "Request timeout"}
     except requests.exceptions.RequestException as e:
-        print(f"[WEBHOOK] ERROR: Request exception: {e}")
+        print(f"[UTILS] ERROR: Request exception: {e}")
         return {"error": f"Request failed: {str(e)}"}
     except Exception as e:
-        print(f"[WEBHOOK] ERROR: Unexpected exception: {e}")
+        print(f"[UTILS] ERROR: Unexpected exception: {e}")
         import traceback
         traceback.print_exc()
         return {"error": f"Unexpected error: {str(e)}"}
 
 
-def format_analysis_response(api_response: dict) -> str:
+def format_analysis_response(api_response: dict, media_type: str = 'audio') -> str:
     """
     Format VoiceShield API response into user-friendly WhatsApp message.
     Handles both simple (old) and orchestrated (new) API responses.
+
+    Args:
+        api_response: Response from the VoiceShield API
+        media_type: Type of media processed ('audio', 'video', 'unknown')
     """
     try:
         # Check for new orchestrated response format
@@ -167,7 +202,13 @@ def format_analysis_response(api_response: dict) -> str:
                 status_msg = "Result: UNKNOWN"
                 details = "Could not determine the nature of the audio."
 
-            message = f"""🎤 *Audio Analysis Complete*
+            # Customize header based on media type
+            if media_type == 'video':
+                header = "🎥 *Video Audio Analysis Complete*"
+            else:
+                header = "🎤 *Audio Analysis Complete*"
+
+            message = f"""{header}
 
 {emoji} *{status_msg}*
 {details}
@@ -194,7 +235,13 @@ _Analysis powered by VoiceShield AI_"""
             else:
                 confidence_text = "Confidence: N/A"
 
-            message = f"""🎤 *Audio Analysis Complete*
+            # Customize header based on media type
+            if media_type == 'video':
+                header = "🎥 *Video Audio Analysis Complete*"
+            else:
+                header = "🎤 *Audio Analysis Complete*"
+
+            message = f"""{header}
 
 {emoji} *{status_msg}*
 📊 {confidence_text}
@@ -235,9 +282,9 @@ def get_error_message(error_type: str = "general") -> str:
         User-friendly error message in English
     """
     error_messages = {
-        "download": "❌ Error downloading audio. Please try sending again.",
-        "api": "❌ Error analyzing audio. Our system may be temporarily unavailable.",
-        "processing": "❌ Error processing audio. Please check if the file is a valid audio.",
+        "download": "❌ Error downloading media file. Please try sending again.",
+        "api": "❌ Error analyzing media. Our system may be temporarily unavailable.",
+        "processing": "❌ Error processing media file. Please check if the file is valid audio or video.",
         "general": "❌ Unexpected error. Please try again in a few moments."
     }
 
